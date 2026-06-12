@@ -201,6 +201,12 @@
     }
   }, { passive: false });
 
+  // Hide page tooltip when mouse leaves the left panel or on any click
+  document.getElementById('left-panel').addEventListener('mouseleave', () => {
+  });
+  document.addEventListener('click', () => {
+  });
+
   tabsScrollLeft.addEventListener('click', () => {
     tabsScrollContent.scrollLeft -= 150;
   });
@@ -795,8 +801,11 @@
     if (timedViewActive) {
       renderTimedView(activeTab);
     } else {
-      // Render tree structure
-      const topLevel = activeTab.pages.filter(l => !l.parentPageId);
+      // Render tree structure (apply label filter if active)
+      let topLevel = activeTab.pages.filter(l => !l.parentPageId);
+      if (activeLabelFilter) {
+        topLevel = topLevel.filter(p => p.labelIds && p.labelIds.includes(activeLabelFilter));
+      }
       topLevel.forEach(page => {
         renderPageItem(page, activeTab, 0);
       });
@@ -818,38 +827,38 @@
     const other = [];
 
     // Only consider top-level pages for grouping
-    const topLevel = activeTab.pages.filter(l => !l.parentPageId);
+    const topLevel = tab.pages.filter(l => !l.parentPageId);
 
     topLevel.forEach(page => {
-      const dateStr = label.updatedAt || label.createdAt || '';
+      const dateStr = page.updatedAt || page.createdAt || '';
       const date = dateStr ? new Date(dateStr) : null;
 
       if (date && date >= oneDayAgo) {
-        today.push(label);
+        today.push(page);
       } else if (date && date >= oneWeekAgo) {
-        week.push(label);
+        week.push(page);
       } else if (date && date >= oneMonthAgo) {
-        month.push(label);
+        month.push(page);
       } else {
-        other.push(label);
+        other.push(page);
       }
     });
 
     if (today.length > 0) {
       renderTimedGroupHeader('Today');
-      today.forEach(page => renderPageItem(label, group, 0));
+      today.forEach(page => renderPageItem(page, tab, 0));
     }
     if (week.length > 0) {
       renderTimedGroupHeader('This Week');
-      week.forEach(page => renderPageItem(label, group, 0));
+      week.forEach(page => renderPageItem(page, tab, 0));
     }
     if (month.length > 0) {
       renderTimedGroupHeader('This Month');
-      month.forEach(page => renderPageItem(label, group, 0));
+      month.forEach(page => renderPageItem(page, tab, 0));
     }
     if (other.length > 0) {
       renderTimedGroupHeader('Older');
-      other.forEach(page => renderPageItem(label, group, 0));
+      other.forEach(page => renderPageItem(page, tab, 0));
     }
   }
 
@@ -886,6 +895,31 @@
     nameSpan.textContent = page.name;
     li.appendChild(nameSpan);
 
+    // Label color dots
+    if (page.labelIds && page.labelIds.length > 0) {
+      const dotsContainer = document.createElement('span');
+      dotsContainer.className = 'page-label-dots';
+      const nbLabels = nb.labels || [];
+      page.labelIds.slice(0, 5).forEach(lblId => {
+        const lbl = nbLabels.find(l => l.id === lblId);
+        if (lbl) {
+          const dot = document.createElement('span');
+          dot.className = 'page-label-dot';
+          dot.style.background = lbl.color;
+          dot.title = lbl.name;
+          dotsContainer.appendChild(dot);
+        }
+      });
+      if (page.labelIds.length > 5) {
+        const more = document.createElement('span');
+        more.style.fontSize = '9px';
+        more.style.color = 'var(--text-muted)';
+        more.textContent = '+' + (page.labelIds.length - 5);
+        dotsContainer.appendChild(more);
+      }
+      li.appendChild(dotsContainer);
+    }
+
     // Collapse/expand toggle (after name, before actions)
     if (hasChildren) {
       const isCollapsed = nb.collapsedPages && nb.collapsedPages[page.id];
@@ -910,18 +944,6 @@
       e.preventDefault();
       e.stopPropagation();
       showPageContextMenu(e.clientX, e.clientY, tab, page);
-    });
-
-    // Hover tooltip with 1s delay
-    let tooltipTimeout = null;
-    li.addEventListener('mouseenter', (e) => {
-      tooltipTimeout = setTimeout(() => {
-        showPageTooltip(e, page);
-      }, 1000);
-    });
-    li.addEventListener('mouseleave', () => {
-      if (tooltipTimeout) { clearTimeout(tooltipTimeout); tooltipTimeout = null; }
-      hidePageTooltip();
     });
 
     li.addEventListener('click', () => {
@@ -983,11 +1005,11 @@
       const height = rect.height;
 
       if (y < height * 0.25) {
-        movePageAsSibling(group, draggedId, page.id, 'before');
+        movePageAsSibling(tab, draggedId, page.id, 'before');
       } else if (y > height * 0.75) {
-        movePageAsSibling(group, draggedId, page.id, 'after');
+        movePageAsSibling(tab, draggedId, page.id, 'after');
       } else {
-        movePageAsChild(group, draggedId, page.id);
+        movePageAsChild(tab, draggedId, page.id);
       }
     });
 
@@ -1019,20 +1041,20 @@
   }
 
   function movePageAsSibling(tab, draggedId, targetId, position) {
-    const dragged = group.pages.find(l => l.id === draggedId);
-    const target = group.pages.find(l => l.id === targetId);
+    const dragged = tab.pages.find(l => l.id === draggedId);
+    const target = tab.pages.find(l => l.id === targetId);
     if (!dragged || !target) return;
 
     // Make same parent as target
     dragged.parentPageId = target.parentPageId;
 
     // Reorder: remove dragged, insert near target
-    const dragIdx = group.pages.indexOf(dragged);
-    group.pages.splice(dragIdx, 1);
+    const dragIdx = tab.pages.indexOf(dragged);
+    tab.pages.splice(dragIdx, 1);
 
-    const targetIdx = group.pages.indexOf(target);
+    const targetIdx = tab.pages.indexOf(target);
     const insertAt = position === 'before' ? targetIdx : targetIdx + 1;
-    group.pages.splice(insertAt, 0, dragged);
+    tab.pages.splice(insertAt, 0, dragged);
 
     debouncedSave();
     renderPages();
@@ -1040,10 +1062,10 @@
 
   function isDescendant(tab, pageId, potentialAncestorId) {
     // Check if pageId is a descendant of potentialAncestorId
-    let current = group.pages.find(l => l.id === pageId);
+    let current = tab.pages.find(l => l.id === pageId);
     while (current && current.parentPageId) {
       if (current.parentPageId === potentialAncestorId) return true;
-      current = group.pages.find(l => l.id === current.parentPageId);
+      current = tab.pages.find(l => l.id === current.parentPageId);
     }
     return false;
   }
@@ -1249,46 +1271,6 @@
     }, 50);
   }
 
-  // ===== Label Tooltip =====
-  let activePageTooltip = null;
-
-  function showPageTooltip(e, page) {
-    hidePageTooltip();
-    const tooltip = document.createElement('div');
-    tooltip.className = 'label-tooltip';
-
-    let html = '';
-    if (page.createdAt) {
-      html += '<div class="tooltip-row"><span class="tooltip-label">Created:</span><span class="tooltip-value">' + formatDate(page.createdAt) + '</span></div>';
-    }
-    if (page.updatedAt) {
-      html += '<div class="tooltip-row"><span class="tooltip-label">Updated:</span><span class="tooltip-value">' + formatDate(page.updatedAt) + '</span></div>';
-    }
-    if (!page.createdAt && !page.updatedAt) {
-      html = '<div class="tooltip-row"><span class="tooltip-value">No metadata available</span></div>';
-    }
-
-    tooltip.innerHTML = html;
-    document.body.appendChild(tooltip);
-    activePageTooltip = tooltip;
-
-    // Position near the mouse
-    const rect = tooltip.getBoundingClientRect();
-    let x = e.clientX + 12;
-    let y = e.clientY + 12;
-    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
-    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
-    tooltip.style.left = x + 'px';
-    tooltip.style.top = y + 'px';
-  }
-
-  function hidePageTooltip() {
-    if (activePageTooltip) {
-      activePageTooltip.remove();
-      activePageTooltip = null;
-    }
-  }
-
   // formatDate imported from NoteUtils
 
   function startEditPageName(liEl, nameSpan, page) {
@@ -1317,14 +1299,14 @@
 
   function deletePage(tab, page) {
     const nb = getActiveNotebook();
-    // Collect this label and all descendants
+    // Collect this page and all descendants
     const toDelete = collectDescendantPages(tab, page.id);
     toDelete.push(page.id);
 
-    group.pages = group.pages.filter(l => !toDelete.includes(l.id));
+    tab.pages = tab.pages.filter(l => !toDelete.includes(l.id));
 
     if (toDelete.includes(nb.activePageId)) {
-      nb.activePageId = group.pages.length > 0 ? group.pages[0].id : null;
+      nb.activePageId = tab.pages.length > 0 ? tab.pages[0].id : null;
     }
     debouncedSave();
     render();
@@ -1332,7 +1314,7 @@
 
   function collectDescendantPages(tab, parentId) {
     const ids = [];
-    const children = tab.pages.filter(l => l.parentPageId === parentTabId);
+    const children = tab.pages.filter(l => l.parentPageId === parentId);
     children.forEach(child => {
       ids.push(child.id);
       ids.push(...collectDescendantPages(tab, child.id));
@@ -1356,15 +1338,22 @@
     contentToolbar.classList.remove('hidden');
     emptyStateEl.classList.add('hidden');
 
-    // Show selected page name
-    contentTitle.textContent = activePage.name;
+    // Show selected page name and metadata
+    var metaHtml = '';
+    if (activePage.createdAt || activePage.updatedAt) {
+      var metaParts = [];
+      if (activePage.createdAt) metaParts.push('Created: ' + formatDate(activePage.createdAt));
+      if (activePage.updatedAt) metaParts.push('Modified: ' + formatDate(activePage.updatedAt));
+      metaHtml = '<span class="content-title-meta">' + metaParts.join(' · ') + '</span>';
+    }
+    contentTitle.innerHTML = '<span class="content-title-name">' + escapeHtml(activePage.name) + '</span>' + metaHtml;
     contentTitle.title = 'Double-click to rename';
     contentTitle.ondblclick = () => {
       const input = document.createElement('input');
       input.type = 'text';
       input.className = 'content-title-input';
       input.value = activePage.name;
-      contentTitle.textContent = '';
+      contentTitle.innerHTML = '';
       contentTitle.appendChild(input);
       input.focus();
       input.select();
@@ -1373,8 +1362,7 @@
         const newName = input.value.trim();
         if (newName) activePage.name = newName;
         debouncedSave();
-        contentTitle.textContent = activePage.name;
-        renderPages();
+        render();
       }
 
       input.addEventListener('blur', finish);
@@ -1388,6 +1376,9 @@
     };
 
     formatSelector.value = activePage.contentType || 'plaintext';
+
+    // Render labels in content toolbar
+    renderContentLabels(activePage);
 
     if (currentMode === 'edit') {
       editorContainer.classList.remove('hidden');
@@ -1681,6 +1672,221 @@
     }, 50);
   });
 
+  // ===== Page Labels =====
+  function renderContentLabels(page) {
+    const labelsEl = document.getElementById('content-labels');
+    labelsEl.innerHTML = '';
+    const nb = getActiveNotebook();
+    if (!nb) return;
+    if (!nb.labels) nb.labels = [];
+    const pageLabels = page.labelIds || [];
+
+    // Render assigned label pills
+    pageLabels.forEach(lblId => {
+      const lbl = nb.labels.find(l => l.id === lblId);
+      if (!lbl) return;
+      const pill = document.createElement('span');
+      pill.className = 'content-label-pill';
+      pill.innerHTML = '<span class="pill-dot" style="background:' + lbl.color + '"></span>' + escapeHtml(lbl.name);
+      labelsEl.appendChild(pill);
+    });
+
+    // Add label button
+    const addBtn = document.createElement('span');
+    addBtn.className = 'add-label-trigger';
+    addBtn.textContent = '+ Label';
+    addBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showLabelDropdown(addBtn, page);
+    });
+    labelsEl.appendChild(addBtn);
+  }
+
+  let activeLabelDropdown = null;
+
+  function closeLabelDropdown() {
+    if (activeLabelDropdown) {
+      activeLabelDropdown.remove();
+      activeLabelDropdown = null;
+    }
+  }
+
+  document.addEventListener('click', closeLabelDropdown);
+
+  function showLabelDropdown(triggerEl, page) {
+    closeLabelDropdown();
+    const nb = getActiveNotebook();
+    if (!nb) return;
+    if (!nb.labels) nb.labels = [];
+    if (!page.labelIds) page.labelIds = [];
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'label-dropdown';
+
+    if (nb.labels.length === 0) {
+      dropdown.innerHTML = '<div class="label-dropdown-empty">No labels yet. Use ☰ menu → Manage Labels to create one.</div>';
+    } else {
+      // Sort: assigned labels first, then unassigned alphabetically
+      const sorted = nb.labels.slice().sort((a, b) => {
+        const aAssigned = page.labelIds.includes(a.id);
+        const bAssigned = page.labelIds.includes(b.id);
+        if (aAssigned && !bAssigned) return -1;
+        if (!aAssigned && bAssigned) return 1;
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      });
+      sorted.forEach(lbl => {
+        const item = document.createElement('div');
+        item.className = 'label-dropdown-item';
+        const isAssigned = page.labelIds.includes(lbl.id);
+        item.innerHTML = '<span class="lbl-dot" style="background:' + lbl.color + '"></span><span>' + escapeHtml(lbl.name) + '</span>' + (isAssigned ? '<span class="lbl-check">✓</span>' : '');
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (isAssigned) {
+            page.labelIds = page.labelIds.filter(id => id !== lbl.id);
+          } else {
+            page.labelIds.push(lbl.id);
+          }
+          debouncedSave();
+          renderContentLabels(page);
+          renderPages();
+          showLabelDropdown(document.querySelector('.add-label-trigger'), page);
+        });
+        dropdown.appendChild(item);
+      });
+    }
+
+    // Position below trigger
+    document.body.appendChild(dropdown);
+    activeLabelDropdown = dropdown;
+    const rect = triggerEl.getBoundingClientRect();
+    dropdown.style.left = rect.left + 'px';
+    dropdown.style.top = (rect.bottom + 4) + 'px';
+  }
+
+  // ===== Manage Labels Modal =====
+  function showManageLabelsModal() {
+    const nb = getActiveNotebook();
+    if (!nb) return;
+    if (!nb.labels) nb.labels = [];
+
+    const overlay = document.createElement('div');
+    overlay.className = 'move-modal-overlay';
+
+    const modal = document.createElement('div');
+    modal.className = 'manage-labels-modal';
+
+    const header = document.createElement('div');
+    header.className = 'move-modal-header';
+    header.innerHTML = '<span>Manage Labels</span>';
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'btn-icon';
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', () => overlay.remove());
+    header.appendChild(closeBtn);
+    modal.appendChild(header);
+
+    const list = document.createElement('div');
+    list.className = 'manage-labels-list';
+
+    function renderList() {
+      list.innerHTML = '';
+      nb.labels.forEach(lbl => {
+        const row = document.createElement('div');
+        row.className = 'manage-label-row';
+        row.innerHTML = '<span class="lbl-dot" style="background:' + lbl.color + ';width:12px;height:12px;border-radius:50%;flex-shrink:0"></span><span class="manage-label-name">' + escapeHtml(lbl.name) + '</span>';
+
+        const actions = document.createElement('span');
+        actions.className = 'manage-label-actions';
+
+        const editBtn = document.createElement('button');
+        editBtn.textContent = '✎';
+        editBtn.title = 'Rename';
+        editBtn.addEventListener('click', () => {
+          const newName = prompt('Rename label:', lbl.name);
+          if (newName && newName.trim()) {
+            lbl.name = newName.trim();
+            debouncedSave();
+            renderList();
+          }
+        });
+
+        const colorBtn = document.createElement('button');
+        colorBtn.textContent = '🎨';
+        colorBtn.title = 'Change color';
+        colorBtn.addEventListener('click', () => {
+          const input = document.createElement('input');
+          input.type = 'color';
+          input.value = lbl.color;
+          input.style.position = 'fixed';
+          input.style.top = '-100px';
+          document.body.appendChild(input);
+          input.addEventListener('input', () => { lbl.color = input.value; debouncedSave(); renderList(); });
+          input.addEventListener('change', () => { setTimeout(() => input.remove(), 100); });
+          input.click();
+        });
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '✕';
+        delBtn.title = 'Delete';
+        delBtn.addEventListener('click', () => {
+          if (!confirm('Delete label "' + lbl.name + '"? It will be removed from all pages.')) return;
+          nb.labels = nb.labels.filter(l => l.id !== lbl.id);
+          // Remove from all pages
+          nb.tabs.forEach(t => {
+            t.pages.forEach(p => {
+              if (p.labelIds) p.labelIds = p.labelIds.filter(id => id !== lbl.id);
+            });
+          });
+          debouncedSave();
+          renderList();
+        });
+
+        actions.appendChild(editBtn);
+        actions.appendChild(colorBtn);
+        actions.appendChild(delBtn);
+        row.appendChild(actions);
+        list.appendChild(row);
+      });
+    }
+
+    renderList();
+    modal.appendChild(list);
+
+    // Add new label form
+    const addForm = document.createElement('div');
+    addForm.className = 'manage-labels-add';
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'New label name...';
+    const addBtnEl = document.createElement('button');
+    addBtnEl.className = 'admin-action-btn';
+    addBtnEl.textContent = '+ Add';
+    addBtnEl.style.padding = '6px 12px';
+    addBtnEl.style.fontSize = '12px';
+    addBtnEl.addEventListener('click', () => {
+      const name = nameInput.value.trim();
+      if (!name) return;
+      if (nb.labels.find(l => l.name === name)) {
+        alert('Label "' + name + '" already exists.');
+        return;
+      }
+      const colors = ['#f38ba8', '#f9e2af', '#89b4fa', '#a6e3a1', '#cba6f7', '#fab387', '#94e2d5'];
+      nb.labels.push({ id: generateId('lbl'), name: name, color: colors[nb.labels.length % colors.length] });
+      nameInput.value = '';
+      debouncedSave();
+      renderList();
+      list.scrollTop = list.scrollHeight;
+    });
+    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addBtnEl.click(); });
+    addForm.appendChild(nameInput);
+    addForm.appendChild(addBtnEl);
+    modal.appendChild(addForm);
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  }
+
   // ===== Page Menu (hamburger) =====
   const pageMenuBtn = document.getElementById('page-menu-btn');
   pageMenuBtn.addEventListener('click', (e) => {
@@ -1780,6 +1986,34 @@
       menu.appendChild(clearTimedItem);
     }
 
+    menu.appendChild(createSeparator());
+
+    // Manage Labels
+    const manageLabelsItem = createMenuItem('🏷', 'Manage Labels');
+    manageLabelsItem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeContextMenu();
+      showManageLabelsModal();
+    });
+    menu.appendChild(manageLabelsItem);
+
+    // Filter by Label
+    const nb = getActiveNotebook();
+    if (nb && nb.labels && nb.labels.length > 0) {
+      const filterItem = createMenuItem('🔍', activeLabelFilter ? 'Clear Filter' : 'Filter by Label');
+      filterItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeContextMenu();
+        if (activeLabelFilter) {
+          activeLabelFilter = null;
+          renderPages();
+        } else {
+          showFilterLabelDropdown(x, y);
+        }
+      });
+      menu.appendChild(filterItem);
+    }
+
     document.body.appendChild(menu);
     activeContextMenu = menu;
 
@@ -1792,6 +2026,37 @@
 
   // ===== Timed View =====
   let timedViewActive = false;
+  let activeLabelFilter = null; // null = no filter, or label ID
+
+  function showFilterLabelDropdown(x, y) {
+    closeContextMenu();
+    const nb = getActiveNotebook();
+    if (!nb || !nb.labels) return;
+
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+
+    nb.labels.forEach(lbl => {
+      const item = document.createElement('div');
+      item.className = 'context-menu-item';
+      item.innerHTML = '<span class="lbl-dot" style="background:' + lbl.color + ';width:10px;height:10px;border-radius:50%;display:inline-block"></span><span>' + escapeHtml(lbl.name) + '</span>';
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeContextMenu();
+        activeLabelFilter = lbl.id;
+        renderPages();
+      });
+      menu.appendChild(item);
+    });
+
+    document.body.appendChild(menu);
+    activeContextMenu = menu;
+    const menuRect = menu.getBoundingClientRect();
+    if (x + menuRect.width > window.innerWidth) x = window.innerWidth - menuRect.width - 8;
+    if (y + menuRect.height > window.innerHeight) y = window.innerHeight - menuRect.height - 8;
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+  }
 
   function activateTimedView() {
     // Sort by newest first, then activate timed view
@@ -1818,7 +2083,7 @@
     const sorted = [];
     topLevel.forEach(parent => {
       sorted.push(parent);
-      appendChildrenSorted(group, parent.id, sorted, field, direction);
+      appendChildrenSorted(activeTab, parent.id, sorted, field, direction);
     });
 
     // Add any orphans (shouldn't happen, but just in case)
@@ -1832,7 +2097,7 @@
   }
 
   function appendChildrenSorted(tab, parentId, result, field, direction) {
-    const kids = activeTab.pages.filter(l => l.parentPageId === parentId);
+    const kids = tab.pages.filter(l => l.parentPageId === parentId);
     kids.sort((a, b) => {
       return comparePages(a, b, field, direction);
     });
@@ -2198,7 +2463,6 @@
 
   // ===== Main Render =====
   function render() {
-    hidePageTooltip();
     renderNotebookSelector();
     renderBreadcrumb();
     renderTabs();
@@ -2225,7 +2489,6 @@
   const serverBackupsEl = document.getElementById('server-backups');
 
   adminBtn.addEventListener('click', () => {
-    hidePageTooltip();
     adminPanel.classList.remove('hidden');
     updateStorageInfo();
     loadServerBackups();

@@ -739,6 +739,25 @@ html, body {
   flex: 1;
   min-width: 0;
   cursor: default;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.3;
+}
+
+.content-title-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-title-meta {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .content-title-input {
@@ -752,6 +771,197 @@ html, body {
   padding: 2px 4px;
   border-radius: 4px 4px 0 0;
   width: 100%;
+}
+
+#content-labels {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.content-label-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  cursor: default;
+}
+
+.content-label-pill .pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.add-label-trigger {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: 1px dashed var(--border);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.add-label-trigger:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Label dropdown */
+.label-dropdown {
+  position: absolute;
+  z-index: 9999;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  min-width: 180px;
+  max-height: 250px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  animation: contextFadeIn 0.12s ease-out;
+}
+
+.label-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.label-dropdown-item:hover {
+  background: var(--bg-overlay);
+}
+
+.label-dropdown-item .lbl-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.label-dropdown-item .lbl-check {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: bold;
+}
+
+.label-dropdown-empty {
+  padding: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Page list label dots */
+.page-label-dots {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.page-label-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Manage Labels Modal */
+.manage-labels-modal {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  width: 340px;
+  max-height: 450px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.manage-labels-list {
+  overflow-y: auto;
+  padding: 8px;
+  flex: 1;
+}
+
+.manage-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+.manage-label-row:hover {
+  background: var(--bg-overlay);
+}
+
+.manage-label-name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.manage-label-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.manage-label-actions button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.manage-label-actions button:hover {
+  color: var(--accent-red);
+  background: var(--bg-overlay);
+}
+
+.manage-labels-add {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.manage-labels-add input {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.manage-labels-add input:focus {
+  border-color: var(--accent);
 }
 
 #content-toolbar-actions {
@@ -1042,42 +1252,6 @@ html, body {
   justify-content: center;
   color: var(--text-muted);
   font-size: 15px;
-}
-
-/* Label Tooltip */
-.label-tooltip {
-  position: fixed;
-  z-index: 9999;
-  background: var(--bg-overlay);
-  border: 1px solid var(--bg-hover);
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-  pointer-events: none;
-  animation: tooltipFadeIn 0.15s ease-out;
-  max-width: 260px;
-}
-
-@keyframes tooltipFadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.label-tooltip .tooltip-row {
-  display: flex;
-  gap: 6px;
-}
-
-.label-tooltip .tooltip-label {
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.label-tooltip .tooltip-value {
-  color: var(--text-primary);
 }
 
 /* Utility */
