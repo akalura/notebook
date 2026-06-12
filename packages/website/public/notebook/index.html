@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notebook</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+  <link rel="shortcut icon" href="images/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16x16.png">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Breadcrumb (visible when inside a container) -->
+    <div id="breadcrumb" class="hidden"></div>
+
+    <!-- Top Navigation Bar (Groups) -->
+    <nav id="top-nav">
+      <div id="notebook-selector">
+        <i data-lucide="book-open" class="icon-sm"></i>
+        <select id="notebook-dropdown"></select>
+      </div>
+      <div id="nav-divider-notebook"></div>
+      <div id="tabs-scroll-area">
+        <button id="tabs-scroll-left" class="tabs-scroll-btn hidden" title="Scroll left"><i data-lucide="chevron-left" class="icon-xs"></i></button>
+        <div id="tabs-scroll-content">
+          <div id="group-tabs"></div>
+          <button id="add-group-btn" class="btn-add-tab" title="Add Tab"><i data-lucide="plus" class="icon-xs"></i></button>
+          <div id="nav-divider"></div>
+          <div id="container-tabs"></div>
+          <button id="add-container-btn" class="btn-add-folder" title="Add Folder"><i data-lucide="folder-plus" class="icon-xs"></i></button>
+        </div>
+        <button id="tabs-scroll-right" class="tabs-scroll-btn hidden" title="Scroll right"><i data-lucide="chevron-right" class="icon-xs"></i></button>
+      </div>
+      <div id="nav-actions">
+        <button id="theme-btn" class="btn-icon" title="Toggle Theme"><i data-lucide="sun" class="icon-sm"></i></button>
+        <button id="admin-btn" class="btn-icon" title="Admin / Backup"><i data-lucide="settings" class="icon-sm"></i></button>
+      </div>
+    </nav>
+
+    <!-- Main Layout -->
+    <div id="main-layout">
+      <!-- Left Navigation Panel (Pages) -->
+      <aside id="left-panel">
+        <div id="left-panel-header">
+          <button id="add-label-btn"><i data-lucide="plus" class="icon-xs"></i> New Page</button>
+          <button id="page-menu-btn" class="btn-icon" title="Page options"><i data-lucide="menu" class="icon-sm"></i></button>
+        </div>
+        <ul id="label-list"></ul>
+      </aside>
+
+      <!-- Main Right Panel (Content) -->
+      <main id="content-panel">
+        <div id="content-toolbar">
+          <span id="content-title"></span>
+          <div id="content-toolbar-actions">
+            <select id="format-selector">
+              <option value="markdown">Markdown</option>
+              <option value="json">JSON</option>
+              <option value="yaml">YAML</option>
+              <option value="plaintext">Plain Text</option>
+            </select>
+            <div id="mode-toggle">
+              <button id="btn-edit" class="active">Edit</button>
+              <button id="btn-preview">Preview</button>
+            </div>
+          </div>
+        </div>
+        <div id="editor-container">
+          <textarea id="editor" placeholder="Paste or type your content here..."></textarea>
+        </div>
+        <div id="preview-container" class="hidden">
+          <div id="preview"></div>
+        </div>
+        <div id="empty-state">
+          <p>Select or create a page to get started.</p>
+        </div>
+      </main>
+    </div>
+
+    <!-- Admin Panel (hidden by default) -->
+    <div id="admin-panel" class="hidden">
+      <div class="admin-header">
+        <h2>⚙ Admin - Backup & Restore</h2>
+        <button id="admin-close-btn" title="Back to Pages">✕</button>
+      </div>
+      <div class="admin-content">
+        <!-- Backup Tabs -->
+        <div class="admin-tabs">
+          <button class="admin-tab active" data-tab="full-backup">Full Backup</button>
+          <button class="admin-tab" data-tab="notebook-backup">Notebook Backup</button>
+        </div>
+
+        <!-- Full Backup Tab Content -->
+        <div id="tab-full-backup" class="admin-tab-content">
+          <section class="admin-section">
+            <h3>Export All</h3>
+            <p>Download a complete backup of all notebooks, pages, and images.</p>
+            <button id="export-btn" class="admin-action-btn">📦 Export All</button>
+            <div id="export-status" class="admin-status"></div>
+          </section>
+          <section class="admin-section">
+            <h3>Restore All</h3>
+            <p>Replace all current data with a previously exported full backup.</p>
+            <div class="admin-warning">⚠ This will overwrite ALL existing notebooks, pages, and images.</div>
+            <button id="restore-btn" class="admin-action-btn">📥 Restore All (Replace)</button>
+            <input type="file" id="restore-file-input" accept=".zip" class="hidden">
+            <div id="restore-status" class="admin-status"></div>
+          </section>
+          <section class="admin-section">
+            <h3>Storage Info</h3>
+            <div id="storage-info" class="storage-info"></div>
+          </section>
+          <section class="admin-section">
+            <h3>Save to Server</h3>
+            <p>Save a backup copy directly to the server's backup folder for safekeeping.</p>
+            <button id="save-server-btn" class="admin-action-btn">💾 Save Backup to Server</button>
+            <div id="save-server-status" class="admin-status"></div>
+          </section>
+          <section class="admin-section">
+            <h3>Server Backups</h3>
+            <p>Previously saved backups on the server. You can download, restore, or delete them.</p>
+            <div id="server-backups"></div>
+          </section>
+          <section class="admin-section admin-section-danger">
+            <h3>⚠ Danger Zone</h3>
+            <p>Permanently delete all pages, tabs, and images. This action cannot be undone.</p>
+            <div class="admin-warning">⚠ This will erase ALL data from localStorage and IndexedDB. Make sure you have a backup before proceeding.</div>
+            <button id="purge-btn" class="admin-action-btn admin-action-btn-danger">🗑 Purge All Data</button>
+            <div id="purge-status" class="admin-status"></div>
+          </section>
+        </div>
+
+        <!-- Notebook Backup Tab Content -->
+        <div id="tab-notebook-backup" class="admin-tab-content hidden">
+          <section class="admin-section">
+            <h3>Export Notebook</h3>
+            <p>Export a single notebook with its pages and images.</p>
+            <div class="admin-row">
+              <select id="export-notebook-select" class="admin-select"></select>
+              <button id="export-notebook-btn" class="admin-action-btn">📦 Export Notebook</button>
+            </div>
+            <div id="export-notebook-status" class="admin-status"></div>
+          </section>
+          <section class="admin-section">
+            <h3>Import Notebook</h3>
+            <p>Import a backup as a new notebook without affecting existing data.</p>
+            <button id="restore-notebook-btn" class="admin-action-btn">📥 Import as Notebook</button>
+            <input type="file" id="restore-notebook-file-input" accept=".zip" class="hidden">
+            <div id="restore-notebook-status" class="admin-status"></div>
+          </section>
+          <section class="admin-section">
+            <h3>Notebook Info</h3>
+            <div id="notebook-storage-info" class="storage-info"></div>
+          </section>
+        </div>
+      </div>
+      <button id="admin-scroll-top" class="admin-scroll-top hidden" title="Scroll to top">↑</button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markdown.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="storage.js"></script>
+  <script src="utils.js"></script>
+  <script src="app.js"></script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

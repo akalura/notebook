@@ -1,0 +1,15 @@
+{
+  "name": "@my-node-app/utils",
+  "version": "1.0.0",
+  "description": "CLI utility commands",
+  "main": "src/index.js",
+  "bin": {
+    "utils": "./src/index.js"
+  },
+  "scripts": {
+    "cli": "node src/index.js"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}
