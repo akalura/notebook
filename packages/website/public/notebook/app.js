@@ -129,6 +129,13 @@
 
   let currentMode = 'edit'; // 'edit' or 'preview'
   let pageCounter = 0;
+  let navHistory = []; // Stack of {folderId, tabId, pageId} for back navigation
+
+  function pushNavHistory(nb) {
+    navHistory.push({ folderId: nb.activeFolderId, tabId: nb.activeTabId, pageId: nb.activePageId });
+    // Limit history size
+    if (navHistory.length > 50) navHistory.shift();
+  }
 
   // Count existing pages to set the counter across all notebooks
   state.notebooks.forEach(nb => {
@@ -286,7 +293,7 @@
     // Notebook name
     const nbName = document.createElement('span');
     nbName.className = 'breadcrumb-item breadcrumb-notebook';
-    nbName.textContent = nb.name;
+    nbName.innerHTML = '<i data-lucide="book-open" class="icon-sm"></i> ' + escapeHtml(nb.name);
     nbName.addEventListener('click', () => {
       nb.activeFolderId = null;
       nb.activeTabId = null;
@@ -298,6 +305,8 @@
 
     // Separator
     const sep0 = document.createElement('span');
+
+    /*
     sep0.className = 'breadcrumb-sep';
     sep0.textContent = ' › ';
     breadcrumbEl.appendChild(sep0);
@@ -314,6 +323,7 @@
       render();
     });
     breadcrumbEl.appendChild(rootLink);
+*/
 
     // Path items
     const path = getBreadcrumbPath();
@@ -324,12 +334,12 @@
       breadcrumbEl.appendChild(sep);
 
       const item = document.createElement('span');
-      item.className = 'breadcrumb-item';
+      item.className = 'breadcrumb-item breadcrumb-folder';
       if (i === path.length - 1) {
         item.classList.add('current');
-        item.textContent = g.name;
+        item.innerHTML = '<i data-lucide="folder" class="icon-sm"></i> ' + escapeHtml(g.name);
       } else {
-        item.textContent = g.name;
+        item.innerHTML = '<i data-lucide="folder" class="icon-sm"></i> ' + escapeHtml(g.name);
         item.addEventListener('click', () => {
           nb.activeFolderId = g.id;
           nb.activeTabId = null;
@@ -340,6 +350,34 @@
       }
       breadcrumbEl.appendChild(item);
     });
+
+    // Back button (navigate to parent folder)
+    const backBtn = document.createElement('span');
+    backBtn.className = 'breadcrumb-back-btn';
+    backBtn.title = 'Go back';
+    backBtn.innerHTML = '<i data-lucide="arrow-left" class="icon-sm"></i>';
+    backBtn.addEventListener('click', () => {
+      // Restore previous state from history
+      if (navHistory.length > 0) {
+        const prev = navHistory.pop();
+        nb.activeFolderId = prev.folderId;
+        nb.activeTabId = prev.tabId;
+        nb.activePageId = prev.pageId;
+      } else {
+        // Fallback: go up one level
+        const currentFolder = getTabById(nb.activeFolderId);
+        if (currentFolder && currentFolder.parentTabId) {
+          nb.activeFolderId = currentFolder.parentTabId;
+        } else {
+          nb.activeFolderId = null;
+        }
+        nb.activeTabId = null;
+        nb.activePageId = null;
+      }
+      debouncedSave();
+      render();
+    });
+    breadcrumbEl.appendChild(backBtn);
   }
 
   function renderTabs() {
@@ -412,12 +450,15 @@
       tab.addEventListener('click', (e) => {
         if (tab.querySelector('.group-tab-input')) return;
         if (group.isFolder) {
+          // Save current state to history before navigating
+          pushNavHistory(nb);
           nb.activeFolderId = group.id;
           nb.activeTabId = null;
           nb.activePageId = null;
           debouncedSave();
           render();
         } else {
+          pushNavHistory(nb);
           nb.activeTabId = group.id;
           const g = getActiveTab();
           const savedLabelId = nb.activePagePerTab && nb.activePagePerTab[group.id];
@@ -966,6 +1007,7 @@
     });
 
     li.addEventListener('click', () => {
+      pushNavHistory(nb);
       nb.activePageId = page.id;
       // Persist active page per tab
       if (!nb.activePagePerTab) nb.activePagePerTab = {};

@@ -28,7 +28,9 @@ window.MarkdownToolbar = (function () {
     { id: 'quote', label: 'Quote', icon: '❝', shortcut: null, prefix: '> ', suffix: '', block: true },
     { id: 'hr', label: 'Horizontal Rule', icon: '—', shortcut: null, prefix: '\n---\n', suffix: '', block: true },
     { id: 'sep4', separator: true },
-    { id: 'checkbox', label: 'Checkbox', icon: '☐', shortcut: null, prefix: '- [ ] ', suffix: '', block: true }
+    { id: 'checkbox', label: 'Checkbox', icon: '☐', shortcut: null, prefix: '- [ ] ', suffix: '', block: true },
+    { id: 'sep5', separator: true },
+    { id: 'datetime', label: 'Date/Time', icon: '📅', shortcut: null, prefix: '', suffix: '', dynamic: true }
   ];
 
   var toolbarEl = null;
@@ -75,6 +77,27 @@ window.MarkdownToolbar = (function () {
     var start = textareaEl.selectionStart;
     var end = textareaEl.selectionEnd;
     var text = textareaEl.value;
+
+    // Handle dynamic actions
+    if (action.dynamic && action.id === 'datetime') {
+      var now = new Date();
+      var month = String(now.getMonth() + 1).padStart(2, '0');
+      var day = String(now.getDate()).padStart(2, '0');
+      var year = String(now.getFullYear()).slice(-2);
+      var hours = now.getHours();
+      var ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12 || 12;
+      var minutes = String(now.getMinutes()).padStart(2, '0');
+      var dateStr = " [ " + month + '/' + day + '/' + year + '-' + hours + ':' + minutes + ' ' + ampm + " ] ";
+
+      var before = text.substring(0, start);
+      var after = text.substring(end);
+      textareaEl.value = before + dateStr + after;
+      textareaEl.selectionStart = textareaEl.selectionEnd = start + dateStr.length;
+      if (onChangeCallback) onChangeCallback();
+      return;
+    }
+
     var selected = text.substring(start, end) || action.label;
 
     var before = text.substring(0, start);

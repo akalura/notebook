@@ -122,6 +122,7 @@ html, body {
   color: var(--text-primary);
   cursor: default;
   font-weight: 700;
+  font-size: 16px;
 }
 
 .breadcrumb-item.current:hover {
@@ -130,12 +131,39 @@ html, body {
 
 .breadcrumb-notebook {
   font-weight: 600;
-  color: var(--accent-green);
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.breadcrumb-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .breadcrumb-sep {
   color: var(--text-muted);
   font-weight: 400;
+}
+
+.breadcrumb-back-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.breadcrumb-back-btn:hover {
+  background: var(--bg-overlay);
+  color: var(--accent);
 }
 
 #top-nav {
