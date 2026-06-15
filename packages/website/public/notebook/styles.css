@@ -382,6 +382,11 @@ html, body {
   color: var(--text-primary);
 }
 
+.group-tab.has-custom-color:hover {
+  background: var(--tab-hover-color) !important;
+  filter: brightness(1.1);
+}
+
 .group-tab.dragging {
   opacity: 0.4;
 }

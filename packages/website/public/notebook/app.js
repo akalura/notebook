@@ -5,6 +5,14 @@
   const { openImageDb, storeImage, getImage, deleteImage, getAllImages, clearAllImages, compressImage } = window.NoteStorage;
   const { generateId, escapeHtml, getContrastColor, formatDate, formatBytes, downloadBlob, autoLinkify, migrateNotebooks } = window.NoteUtils;
 
+  function lightenColor(hex, percent) {
+    var c = hex.replace('#', '');
+    var r = Math.min(255, parseInt(c.substring(0, 2), 16) + Math.round(255 * percent / 100));
+    var g = Math.min(255, parseInt(c.substring(2, 4), 16) + Math.round(255 * percent / 100));
+    var b = Math.min(255, parseInt(c.substring(4, 6), 16) + Math.round(255 * percent / 100));
+    return '#' + r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0');
+  }
+
   // ===== Storage =====
   const STORAGE_KEY = 'notebook_state';
 
@@ -130,6 +138,7 @@
   let currentMode = 'edit'; // 'edit' or 'preview'
   let pageCounter = 0;
   let navHistory = []; // Stack of {folderId, tabId, pageId} for back navigation
+  let copiedColor = null; // For copy/paste color between tabs/folders
 
   function pushNavHistory(nb) {
     navHistory.push({ folderId: nb.activeFolderId, tabId: nb.activeTabId, pageId: nb.activePageId });
@@ -420,6 +429,8 @@
       if (group.color && group.id !== nb.activeTabId) {
         tab.style.background = group.color;
         tab.style.color = getContrastColor(group.color);
+        tab.style.setProperty('--tab-hover-color', lightenColor(group.color, 30));
+        tab.classList.add('has-custom-color');
       }
       // Active tab with custom color
       if (group.color && group.id === nb.activeTabId) {
@@ -683,6 +694,28 @@
         renderTabs();
       });
       menu.appendChild(removeColorItem);
+
+      // Copy color
+      const copyColorItem = createMenuItem('📋', 'Copy Color');
+      copyColorItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeContextMenu();
+        copiedColor = tabItem.color;
+      });
+      menu.appendChild(copyColorItem);
+    }
+
+    // Paste color (only show if a color has been copied)
+    if (copiedColor) {
+      const pasteColorItem = createMenuItem('📌', 'Paste Color');
+      pasteColorItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeContextMenu();
+        tabItem.color = copiedColor;
+        debouncedSave();
+        renderTabs();
+      });
+      menu.appendChild(pasteColorItem);
     }
 
     // If not a container, offer "Make Container"
