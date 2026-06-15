@@ -1676,7 +1676,7 @@
       } catch (e) { /* not json */ }
     }
     const lines = trimmed.split('\n').slice(0, 5);
-    const yamlPattern = /^[\w-]+:\s*.+$/;
+    const yamlPattern = /^[a-zA-Z][\w-]*:\s+.+$/;
     if (lines.filter(l => yamlPattern.test(l)).length >= 2) {
       return 'yaml';
     }
