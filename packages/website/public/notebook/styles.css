@@ -96,8 +96,9 @@ html, body {
 #breadcrumb {
   display: flex;
   align-items: center;
-  padding: 6px 16px;
-  font-size: 12px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
   gap: 2px;
   background: var(--bg-deep);
   border-bottom: 1px solid var(--border);
@@ -107,9 +108,10 @@ html, body {
 .breadcrumb-item {
   color: var(--accent);
   cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 3px 8px;
+  border-radius: 4px;
   transition: background 0.1s;
+  font-weight: 500;
 }
 
 .breadcrumb-item:hover {
@@ -119,15 +121,21 @@ html, body {
 .breadcrumb-item.current {
   color: var(--text-primary);
   cursor: default;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .breadcrumb-item.current:hover {
   background: none;
 }
 
+.breadcrumb-notebook {
+  font-weight: 600;
+  color: var(--accent-green);
+}
+
 .breadcrumb-sep {
   color: var(--text-muted);
+  font-weight: 400;
 }
 
 #top-nav {
@@ -1015,6 +1023,52 @@ html, body {
 #mode-toggle button:hover:not(.active) {
   background: var(--bg-hover);
   color: var(--text-primary);
+}
+
+/* Markdown Toolbar */
+.md-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 12px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.md-toolbar-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 28px;
+  height: 26px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.md-toolbar-btn:hover {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.md-toolbar-btn:active {
+  transform: scale(0.93);
+}
+
+.md-toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 4px;
 }
 
 /* Editor */

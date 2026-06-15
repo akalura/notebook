@@ -283,6 +283,25 @@
     breadcrumbEl.classList.remove('hidden');
     breadcrumbEl.innerHTML = '';
 
+    // Notebook name
+    const nbName = document.createElement('span');
+    nbName.className = 'breadcrumb-item breadcrumb-notebook';
+    nbName.textContent = nb.name;
+    nbName.addEventListener('click', () => {
+      nb.activeFolderId = null;
+      nb.activeTabId = null;
+      nb.activePageId = null;
+      debouncedSave();
+      render();
+    });
+    breadcrumbEl.appendChild(nbName);
+
+    // Separator
+    const sep0 = document.createElement('span');
+    sep0.className = 'breadcrumb-sep';
+    sep0.textContent = ' › ';
+    breadcrumbEl.appendChild(sep0);
+
     // Root link
     const rootLink = document.createElement('span');
     rootLink.className = 'breadcrumb-item';
@@ -1251,7 +1270,7 @@
     const newPage = {
       id: generateId('label'),
       name: defaultName,
-      contentType: 'plaintext',
+      contentType: 'markdown',
       content: '',
       createdAt: new Date().toISOString(),
       updatedAt: null,
@@ -1384,9 +1403,16 @@
       editorContainer.classList.remove('hidden');
       previewContainer.classList.add('hidden');
       editorEl.value = activePage.content || '';
+      // Show markdown toolbar only in edit mode with markdown format
+      if (activePage.contentType === 'markdown') {
+        window.MarkdownToolbar.show();
+      } else {
+        window.MarkdownToolbar.hide();
+      }
     } else {
       editorContainer.classList.add('hidden');
       previewContainer.classList.remove('hidden');
+      window.MarkdownToolbar.hide();
       renderPreview(activePage);
     }
   }
@@ -2131,7 +2157,7 @@
     const newPage = {
       id: generateId('label'),
       name: defaultName,
-      contentType: 'plaintext',
+      contentType: 'markdown',
       content: '',
       createdAt: new Date().toISOString(),
       updatedAt: null,
@@ -3118,6 +3144,18 @@
   });
 
   // ===== Init =====
+  // Initialize markdown toolbar (insert before editor container, inside content panel)
+  var contentPanel = document.getElementById('content-panel');
+  window.MarkdownToolbar.init(editorEl, contentPanel, () => {
+    const activePage = getActivePage();
+    if (activePage) {
+      activePage.content = editorEl.value;
+      activePage.updatedAt = new Date().toISOString();
+      debouncedSave();
+    }
+  });
+  window.MarkdownToolbar.hide();
+
   openImageDb().then(() => {
     render();
   }).catch(() => {
