@@ -796,6 +796,35 @@
     input.click();
   }
 
+  function showPageColorPicker(page) {
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.value = page.color || '#313244';
+    input.style.position = 'fixed';
+    input.style.top = '-100px';
+    input.style.left = '-100px';
+    document.body.appendChild(input);
+
+    input.addEventListener('input', () => {
+      page.color = input.value;
+      debouncedSave();
+      renderPages();
+    });
+
+    input.addEventListener('change', () => {
+      page.color = input.value;
+      debouncedSave();
+      renderPages();
+      setTimeout(() => input.remove(), 100);
+    });
+
+    input.addEventListener('blur', () => {
+      setTimeout(() => input.remove(), 200);
+    });
+
+    input.click();
+  }
+
   function deleteTab(group) {
     const nb = getActiveNotebook();
     if (!nb) return;
@@ -970,6 +999,14 @@
     li.dataset.depth = depth;
     li.style.paddingLeft = (12 + depth * 18) + 'px';
     li.draggable = true;
+
+    // Apply custom page color
+    if (page.color && page.id !== nb.activePageId) {
+      li.style.background = page.color;
+      li.style.color = getContrastColor(page.color);
+      li.style.setProperty('--page-hover-color', lightenColor(page.color, 30));
+      li.classList.add('has-page-color');
+    }
 
     // Check if this label has children
     const children = tab.pages.filter(l => l.parentPageId === page.id);
@@ -1207,6 +1244,52 @@
       }
     });
     menu.appendChild(renameItem);
+
+    menu.appendChild(createSeparator());
+
+    // Set Color
+    const colorItem = createMenuItem('🎨', 'Set Color');
+    colorItem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeContextMenu();
+      showPageColorPicker(page);
+    });
+    menu.appendChild(colorItem);
+
+    // Remove Color (only if set)
+    if (page.color) {
+      const removeColorItem = createMenuItem('🚫', 'Remove Color');
+      removeColorItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeContextMenu();
+        page.color = null;
+        debouncedSave();
+        renderPages();
+      });
+      menu.appendChild(removeColorItem);
+
+      // Copy Color
+      const copyColorItem = createMenuItem('📋', 'Copy Color');
+      copyColorItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeContextMenu();
+        copiedColor = page.color;
+      });
+      menu.appendChild(copyColorItem);
+    }
+
+    // Paste Color
+    if (copiedColor) {
+      const pasteColorItem = createMenuItem('📌', 'Paste Color');
+      pasteColorItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeContextMenu();
+        page.color = copiedColor;
+        debouncedSave();
+        renderPages();
+      });
+      menu.appendChild(pasteColorItem);
+    }
 
     menu.appendChild(createSeparator());
 
@@ -1545,6 +1628,11 @@
         previewEl.innerHTML = marked.parse(content, { breaks: true, gfm: true });
         previewEl.querySelectorAll('pre code').forEach(block => {
           Prism.highlightElement(block);
+        });
+        // Open all links in new window
+        previewEl.querySelectorAll('a').forEach(a => {
+          a.setAttribute('target', '_blank');
+          a.setAttribute('rel', 'noopener noreferrer');
         });
         break;
 

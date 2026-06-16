@@ -639,6 +639,17 @@ html, body {
   box-shadow: none;
 }
 
+/* Page custom color */
+#label-list li.has-page-color:hover {
+  background: var(--page-hover-color) !important;
+  filter: brightness(1.1);
+}
+
+#label-list li.has-page-color.active {
+  border-left-color: var(--accent);
+  filter: brightness(0.85);
+}
+
 #label-list li .label-name {
   flex: 1;
   overflow: hidden;
