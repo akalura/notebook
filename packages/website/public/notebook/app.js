@@ -3127,6 +3127,49 @@
     }
   });
 
+  // ===== Save to Google Drive =====
+  const saveGdriveBtn = document.getElementById('save-gdrive-btn');
+  saveGdriveBtn.addEventListener('click', async () => {
+    saveGdriveBtn.disabled = true;
+    saveServerStatus.className = 'admin-status info';
+    saveServerStatus.textContent = 'Saving to Google Drive...';
+
+    try {
+      const zip = new JSZip();
+      const stateData = localStorage.getItem(STORAGE_KEY);
+      zip.file('state.json', stateData || '{}');
+
+      const allImages = await getAllImages();
+      if (allImages.length > 0) {
+        const imgFolder = zip.folder('images');
+        for (const img of allImages) {
+          const ext = img.mimeType === 'image/png' ? '.png' : '.jpg';
+          imgFolder.file(img.id + ext, img.blob);
+        }
+      }
+
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+
+      const formData = new FormData();
+      formData.append('backup', blob, 'backup.zip');
+
+      const response = await fetch('/notebook/api/backup-gdrive', { method: 'POST', body: formData });
+      const result = await response.json();
+
+      if (result.success) {
+        saveServerStatus.className = 'admin-status success';
+        saveServerStatus.textContent = '✓ Saved to Google Drive: ' + result.filename + ' (' + formatBytes(result.size) + ')';
+      } else {
+        throw new Error(result.error || 'Upload failed');
+      }
+    } catch (err) {
+      saveServerStatus.className = 'admin-status error';
+      saveServerStatus.textContent = '✕ Google Drive save failed: ' + err.message;
+    } finally {
+      saveGdriveBtn.disabled = false;
+    }
+  });
+
   // ===== Server Backups List =====
   async function loadServerBackups() {
     try {

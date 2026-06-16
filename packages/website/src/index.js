@@ -6,10 +6,14 @@ const multer = require('multer');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Backup folder
-const BACKUP_DIR = path.join(__dirname, '../backup');
+// Backup folder (use BACKUP_DIR env var or default)
+const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, '../backup');
+const GDRIVE_BACKUP_DIR = 'G:\\My Drive\\notebook-backup';
 if (!fs.existsSync(BACKUP_DIR)) {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
+}
+if (!fs.existsSync(GDRIVE_BACKUP_DIR)) {
+  fs.mkdirSync(GDRIVE_BACKUP_DIR, { recursive: true });
 }
 
 // Multer for file uploads
@@ -69,6 +73,42 @@ app.delete('/notebook/api/backup/:filename', (req, res) => {
   }
   fs.unlinkSync(filePath);
   res.json({ success: true });
+});
+
+// Save backup to Google Drive sync folder
+app.post('/notebook/api/backup-gdrive', upload.single('backup'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  const date = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const newName = 'notebook-backup-' + date + '.zip';
+  const newPath = path.join(GDRIVE_BACKUP_DIR, newName);
+  try {
+    fs.copyFileSync(req.file.path, newPath);
+    fs.unlinkSync(req.file.path);
+    res.json({ success: true, filename: newName, size: req.file.size, path: GDRIVE_BACKUP_DIR });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save to Google Drive folder: ' + err.message });
+  }
+});
+
+// List Google Drive backups
+app.get('/notebook/api/backups-gdrive', (req, res) => {
+  try {
+    if (!fs.existsSync(GDRIVE_BACKUP_DIR)) {
+      return res.json([]);
+    }
+    const files = fs.readdirSync(GDRIVE_BACKUP_DIR)
+      .filter(f => f.endsWith('.zip'))
+      .map(f => {
+        const stat = fs.statSync(path.join(GDRIVE_BACKUP_DIR, f));
+        return { name: f, size: stat.size, date: stat.mtime.toISOString() };
+      })
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+    res.json(files);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ===== Static files & page routes =====
