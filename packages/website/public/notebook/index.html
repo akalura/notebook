@@ -37,7 +37,7 @@
       </div>
       <div id="nav-actions">
         <button id="theme-btn" class="btn-icon" title="Toggle Theme"><i data-lucide="sun" class="icon-sm"></i></button>
-        <button id="admin-btn" class="btn-icon" title="Admin / Backup"><i data-lucide="settings" class="icon-sm"></i></button>
+        <button id="admin-btn" class="btn-icon" title="Admin"><i data-lucide="settings" class="icon-sm"></i></button>
       </div>
     </nav>
 
@@ -58,6 +58,7 @@
           <span id="content-title"></span>
           <div id="content-labels"></div>
           <div id="content-toolbar-actions">
+            <button id="copy-content-btn" class="btn-icon" title="Copy content to clipboard"><i data-lucide="clipboard-copy" class="icon-sm"></i></button>
             <select id="format-selector">
               <option value="markdown">Markdown</option>
               <option value="json">JSON</option>
@@ -85,78 +86,100 @@
     <!-- Admin Panel (hidden by default) -->
     <div id="admin-panel" class="hidden">
       <div class="admin-header">
-        <h2>⚙ Admin - Backup & Restore</h2>
+        <h2>⚙ Admin</h2>
         <button id="admin-close-btn" title="Back to Pages">✕</button>
       </div>
       <div class="admin-content">
-        <!-- Backup Tabs -->
-        <div class="admin-tabs">
-          <button class="admin-tab active" data-tab="full-backup">Full Backup</button>
-          <button class="admin-tab" data-tab="notebook-backup">Notebook Backup</button>
+        <!-- Top-level Admin Tabs -->
+        <div class="admin-tabs admin-tabs-top">
+          <button class="admin-tab-top active" data-admin-tab="admin-backup">Backup</button>
+          <button class="admin-tab-top" data-admin-tab="admin-labels">Label Macro</button>
         </div>
 
-        <!-- Full Backup Tab Content -->
-        <div id="tab-full-backup" class="admin-tab-content">
-          <section class="admin-section">
-            <h3>Export All</h3>
-            <p>Download a complete backup of all notebooks, pages, and images.</p>
-            <button id="export-btn" class="admin-action-btn">📦 Export All</button>
-            <div id="export-status" class="admin-status"></div>
-          </section>
-          <section class="admin-section">
-            <h3>Restore All</h3>
-            <p>Replace all current data with a previously exported full backup.</p>
-            <div class="admin-warning">⚠ This will overwrite ALL existing notebooks, pages, and images.</div>
-            <button id="restore-btn" class="admin-action-btn">📥 Restore All (Replace)</button>
-            <input type="file" id="restore-file-input" accept=".zip" class="hidden">
-            <div id="restore-status" class="admin-status"></div>
-          </section>
-          <section class="admin-section">
-            <h3>Storage Info</h3>
-            <div id="storage-info" class="storage-info"></div>
-          </section>
-          <section class="admin-section">
-            <h3>Save to Server</h3>
-            <p>Save a backup copy directly to the server's backup folder for safekeeping.</p>
-            <button id="save-server-btn" class="admin-action-btn">💾 Save Backup to Server</button>
-            <button id="save-gdrive-btn" class="admin-action-btn" style="margin-left:8px">☁️ Save to Google Drive</button>
-            <div id="save-server-status" class="admin-status"></div>
-          </section>
-          <section class="admin-section">
-            <h3>Server Backups</h3>
-            <p>Previously saved backups on the server. You can download, restore, or delete them.</p>
-            <div id="server-backups"></div>
-          </section>
-          <section class="admin-section admin-section-danger">
-            <h3>⚠ Danger Zone</h3>
-            <p>Permanently delete all pages, tabs, and images. This action cannot be undone.</p>
-            <div class="admin-warning">⚠ This will erase ALL data from localStorage and IndexedDB. Make sure you have a backup before proceeding.</div>
-            <button id="purge-btn" class="admin-action-btn admin-action-btn-danger">🗑 Purge All Data</button>
-            <div id="purge-status" class="admin-status"></div>
-          </section>
+        <!-- ===== Backup Tab ===== -->
+        <div id="admin-backup" class="admin-tab-top-content">
+          <!-- Backup Sub-Tabs -->
+          <div class="admin-tabs">
+            <button class="admin-tab active" data-tab="full-backup">Full Backup</button>
+            <button class="admin-tab" data-tab="notebook-backup">Notebook Backup</button>
+          </div>
+
+          <!-- Full Backup Tab Content -->
+          <div id="tab-full-backup" class="admin-tab-content">
+            <section class="admin-section">
+              <h3>Export All</h3>
+              <p>Download a complete backup of all notebooks, pages, and images.</p>
+              <button id="export-btn" class="admin-action-btn">📦 Export All</button>
+              <div id="export-status" class="admin-status"></div>
+            </section>
+            <section class="admin-section">
+              <h3>Restore All</h3>
+              <p>Replace all current data with a previously exported full backup.</p>
+              <div class="admin-warning">⚠ This will overwrite ALL existing notebooks, pages, and images.</div>
+              <button id="restore-btn" class="admin-action-btn">📥 Restore All (Replace)</button>
+              <input type="file" id="restore-file-input" accept=".zip" class="hidden">
+              <div id="restore-status" class="admin-status"></div>
+            </section>
+            <section class="admin-section">
+              <h3>Storage Info</h3>
+              <div id="storage-info" class="storage-info"></div>
+            </section>
+            <section class="admin-section">
+              <h3>Save to Server</h3>
+              <p>Save a backup copy directly to the server's backup folder for safekeeping.</p>
+              <button id="save-server-btn" class="admin-action-btn">💾 Save Backup to Server</button>
+              <button id="save-gdrive-btn" class="admin-action-btn" style="margin-left:8px">☁️ Save to Google Drive</button>
+              <div id="save-server-status" class="admin-status"></div>
+            </section>
+            <section class="admin-section">
+              <h3>Server Backups</h3>
+              <p>Previously saved backups on the server. You can download, restore, or delete them.</p>
+              <div id="server-backups"></div>
+            </section>
+            <section class="admin-section admin-section-danger">
+              <h3>⚠ Danger Zone</h3>
+              <p>Permanently delete all pages, tabs, and images. This action cannot be undone.</p>
+              <div class="admin-warning">⚠ This will erase ALL data from localStorage and IndexedDB. Make sure you have a backup before proceeding.</div>
+              <button id="purge-btn" class="admin-action-btn admin-action-btn-danger">🗑 Purge All Data</button>
+              <div id="purge-status" class="admin-status"></div>
+            </section>
+          </div>
+
+          <!-- Notebook Backup Tab Content -->
+          <div id="tab-notebook-backup" class="admin-tab-content hidden">
+            <section class="admin-section">
+              <h3>Export Notebook</h3>
+              <p>Export a single notebook with its pages and images.</p>
+              <div class="admin-row">
+                <select id="export-notebook-select" class="admin-select"></select>
+                <button id="export-notebook-btn" class="admin-action-btn">📦 Export Notebook</button>
+              </div>
+              <div id="export-notebook-status" class="admin-status"></div>
+            </section>
+            <section class="admin-section">
+              <h3>Import Notebook</h3>
+              <p>Import a backup as a new notebook without affecting existing data.</p>
+              <button id="restore-notebook-btn" class="admin-action-btn">📥 Import as Notebook</button>
+              <input type="file" id="restore-notebook-file-input" accept=".zip" class="hidden">
+              <div id="restore-notebook-status" class="admin-status"></div>
+            </section>
+            <section class="admin-section">
+              <h3>Notebook Info</h3>
+              <div id="notebook-storage-info" class="storage-info"></div>
+            </section>
+          </div>
         </div>
 
-        <!-- Notebook Backup Tab Content -->
-        <div id="tab-notebook-backup" class="admin-tab-content hidden">
+        <!-- ===== Label Macro Tab ===== -->
+        <div id="admin-labels" class="admin-tab-top-content hidden">
           <section class="admin-section">
-            <h3>Export Notebook</h3>
-            <p>Export a single notebook with its pages and images.</p>
-            <div class="admin-row">
-              <select id="export-notebook-select" class="admin-select"></select>
-              <button id="export-notebook-btn" class="admin-action-btn">📦 Export Notebook</button>
-            </div>
-            <div id="export-notebook-status" class="admin-status"></div>
+            <h3>Label Macros</h3>
+            <p>Assign plugins to labels. When a page has a label with a macro, the plugin can be executed on that page's content.</p>
+            <button id="create-macro-btn" class="admin-action-btn">+ Create New Macro</button>
           </section>
           <section class="admin-section">
-            <h3>Import Notebook</h3>
-            <p>Import a backup as a new notebook without affecting existing data.</p>
-            <button id="restore-notebook-btn" class="admin-action-btn">📥 Import as Notebook</button>
-            <input type="file" id="restore-notebook-file-input" accept=".zip" class="hidden">
-            <div id="restore-notebook-status" class="admin-status"></div>
-          </section>
-          <section class="admin-section">
-            <h3>Notebook Info</h3>
-            <div id="notebook-storage-info" class="storage-info"></div>
+            <h3>Existing Macros</h3>
+            <div id="macro-list"></div>
           </section>
         </div>
       </div>
@@ -170,8 +193,12 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markdown.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
   <script src="storage.js"></script>
   <script src="utils.js"></script>
+  <script src="plugins/plugin-registry.js"></script>
+  <script src="plugins/sequence-diagram.js"></script>
+  <script src="plugins/swagger-editor.js"></script>
   <script src="markdown-toolbar.js"></script>
   <script src="app.js"></script>
   <script>lucide.createIcons();</script>

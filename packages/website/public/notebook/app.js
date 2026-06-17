@@ -1304,6 +1304,21 @@
 
     menu.appendChild(createSeparator());
 
+    // Run Macro (only if page has labels with macros)
+    if (page.labelIds && page.labelIds.length > 0 && state.macros) {
+      const matchingMacros = state.macros.filter(m => page.labelIds.includes(m.labelId));
+      if (matchingMacros.length > 0) {
+        const macroItem = createMenuItem('▶', 'Run Macro');
+        macroItem.addEventListener('click', (e) => {
+          e.stopPropagation();
+          closeContextMenu();
+          window.executeMacroForPage(page);
+        });
+        menu.appendChild(macroItem);
+        menu.appendChild(createSeparator());
+      }
+    }
+
     // Delete
     const deleteItem = createMenuItem('🗑', 'Delete', true);
     deleteItem.addEventListener('click', (e) => {
@@ -1876,7 +1891,18 @@
       if (!lbl) return;
       const pill = document.createElement('span');
       pill.className = 'content-label-pill';
-      pill.innerHTML = '<span class="pill-dot" style="background:' + lbl.color + '"></span>' + escapeHtml(lbl.name);
+
+      // Check if this label has an associated macro
+      const hasMacro = state.macros && state.macros.find(m => m.labelId === lblId);
+      if (hasMacro) {
+        pill.classList.add('content-label-pill-macro');
+        pill.title = 'Click to run: ' + (window.PluginRegistry.get(hasMacro.pluginId) || {}).name;
+        pill.addEventListener('click', () => {
+          window.PluginRegistry.execute(hasMacro.pluginId, page.content || '', page);
+        });
+      }
+
+      pill.innerHTML = '<span class="pill-dot" style="background:' + lbl.color + '"></span>' + escapeHtml(lbl.name) + (hasMacro ? ' ▶' : '');
       labelsEl.appendChild(pill);
     });
 
@@ -2341,6 +2367,21 @@
     }, 100);
   });
 
+  // Copy content to clipboard
+  document.getElementById('copy-content-btn').addEventListener('click', () => {
+    const activePage = getActivePage();
+    if (!activePage || !activePage.content) return;
+    navigator.clipboard.writeText(activePage.content).then(() => {
+      const btn = document.getElementById('copy-content-btn');
+      btn.title = 'Copied!';
+      btn.style.color = 'var(--accent-green)';
+      setTimeout(() => {
+        btn.title = 'Copy content to clipboard';
+        btn.style.color = '';
+      }, 1500);
+    });
+  });
+
   formatSelector.addEventListener('change', () => {
     const activePage = getActivePage();
     if (!activePage) return;
@@ -2684,7 +2725,18 @@
     populateExportNotebookSelect();
   });
 
-  // Admin tab switching
+  // Top-level admin tab switching
+  document.querySelectorAll('.admin-tab-top').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.admin-tab-top').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.admin-tab-top-content').forEach(c => c.classList.add('hidden'));
+      tab.classList.add('active');
+      const target = document.getElementById(tab.dataset.adminTab);
+      if (target) target.classList.remove('hidden');
+    });
+  });
+
+  // Backup sub-tab switching
   document.querySelectorAll('.admin-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
@@ -3348,6 +3400,177 @@
       purgeBtn.disabled = false;
     }
   });
+
+  // ===== Label Macros =====
+  const createMacroBtn = document.getElementById('create-macro-btn');
+  const macroListEl = document.getElementById('macro-list');
+
+  // Macros stored at top-level state: state.macros = [{ id, labelId, labelName, pluginId }]
+  if (!state.macros) state.macros = [];
+
+  function getAllUniqueLabels() {
+    const labels = [];
+    const seen = new Set();
+    state.notebooks.forEach(nb => {
+      if (!nb.labels) return;
+      nb.labels.forEach(lbl => {
+        if (!seen.has(lbl.id)) {
+          seen.add(lbl.id);
+          labels.push({ id: lbl.id, name: lbl.name, color: lbl.color });
+        }
+      });
+    });
+    return labels;
+  }
+
+  function getLabelsWithoutMacro() {
+    const macroLabelIds = new Set(state.macros.map(m => m.labelId));
+    return getAllUniqueLabels().filter(lbl => !macroLabelIds.has(lbl.id));
+  }
+
+  function renderMacroList() {
+    macroListEl.innerHTML = '';
+    if (state.macros.length === 0) {
+      macroListEl.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No macros defined yet.</p>';
+      return;
+    }
+    state.macros.forEach(macro => {
+      const plugin = window.PluginRegistry.get(macro.pluginId);
+      const row = document.createElement('div');
+      row.className = 'manage-label-row';
+      row.innerHTML = '<span class="lbl-dot" style="background:' + (macro.labelColor || '#888') + ';width:12px;height:12px;border-radius:50%;flex-shrink:0"></span>' +
+        '<span class="manage-label-name">' + escapeHtml(macro.labelName) + '</span>' +
+        '<span style="font-size:11px;color:var(--text-muted);margin-left:8px">→ ' + (plugin ? plugin.name : 'Unknown Plugin') + '</span>';
+
+      const actions = document.createElement('span');
+      actions.className = 'manage-label-actions';
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '✕';
+      delBtn.title = 'Remove macro';
+      delBtn.addEventListener('click', () => {
+        state.macros = state.macros.filter(m => m.id !== macro.id);
+        debouncedSave();
+        renderMacroList();
+      });
+      actions.appendChild(delBtn);
+      row.appendChild(actions);
+      macroListEl.appendChild(row);
+    });
+  }
+
+  createMacroBtn.addEventListener('click', () => {
+    const availableLabels = getLabelsWithoutMacro();
+    const plugins = window.PluginRegistry.getAll();
+
+    if (availableLabels.length === 0) {
+      alert('All labels already have macros assigned, or no labels exist. Create a new label first.');
+      return;
+    }
+    if (plugins.length === 0) {
+      alert('No plugins available. Add plugin files to the plugins folder.');
+      return;
+    }
+
+    // Show creation modal
+    const overlay = document.createElement('div');
+    overlay.className = 'move-modal-overlay';
+
+    const modal = document.createElement('div');
+    modal.className = 'manage-labels-modal';
+
+    const header = document.createElement('div');
+    header.className = 'move-modal-header';
+    header.innerHTML = '<span>Create Macro</span>';
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'btn-icon';
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', () => overlay.remove());
+    header.appendChild(closeBtn);
+    modal.appendChild(header);
+
+    const form = document.createElement('div');
+    form.style.padding = '16px';
+    form.style.display = 'flex';
+    form.style.flexDirection = 'column';
+    form.style.gap = '12px';
+
+    // Label selector
+    const labelLabel = document.createElement('label');
+    labelLabel.style.fontSize = '13px';
+    labelLabel.style.color = 'var(--text-secondary)';
+    labelLabel.textContent = 'Select Label:';
+    form.appendChild(labelLabel);
+
+    const labelSelect = document.createElement('select');
+    labelSelect.className = 'admin-select';
+    labelSelect.style.width = '100%';
+    availableLabels.forEach(lbl => {
+      const opt = document.createElement('option');
+      opt.value = lbl.id;
+      opt.textContent = lbl.name;
+      opt.dataset.color = lbl.color;
+      labelSelect.appendChild(opt);
+    });
+    form.appendChild(labelSelect);
+
+    // Plugin selector
+    const pluginLabel = document.createElement('label');
+    pluginLabel.style.fontSize = '13px';
+    pluginLabel.style.color = 'var(--text-secondary)';
+    pluginLabel.textContent = 'Select Plugin:';
+    form.appendChild(pluginLabel);
+
+    const pluginSelect = document.createElement('select');
+    pluginSelect.className = 'admin-select';
+    pluginSelect.style.width = '100%';
+    plugins.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name + ' — ' + p.description;
+      pluginSelect.appendChild(opt);
+    });
+    form.appendChild(pluginSelect);
+
+    // Create button
+    const createBtn = document.createElement('button');
+    createBtn.className = 'admin-action-btn';
+    createBtn.textContent = 'Create Macro';
+    createBtn.addEventListener('click', () => {
+      const selectedLabel = availableLabels.find(l => l.id === labelSelect.value);
+      if (!selectedLabel) return;
+      state.macros.push({
+        id: generateId('macro'),
+        labelId: selectedLabel.id,
+        labelName: selectedLabel.name,
+        labelColor: selectedLabel.color,
+        pluginId: pluginSelect.value
+      });
+      debouncedSave();
+      renderMacroList();
+      overlay.remove();
+    });
+    form.appendChild(createBtn);
+
+    modal.appendChild(form);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  });
+
+  // Render macro list when admin opens
+  const origAdminClick = adminBtn.onclick;
+  adminBtn.addEventListener('click', () => { renderMacroList(); });
+
+  // ===== Execute Macro from Page =====
+  // This is exposed so it can be triggered from the page context menu or labels
+  window.executeMacroForPage = function(page) {
+    if (!page || !page.labelIds || page.labelIds.length === 0) return;
+    const matchingMacros = state.macros.filter(m => page.labelIds.includes(m.labelId));
+    if (matchingMacros.length === 0) return;
+    matchingMacros.forEach(macro => {
+      window.PluginRegistry.execute(macro.pluginId, page.content || '', page);
+    });
+  };
 
   // ===== Init =====
   // Initialize markdown toolbar (insert before editor container, inside content panel)
