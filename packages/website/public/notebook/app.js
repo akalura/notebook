@@ -3657,6 +3657,24 @@
   };
 
   // ===== Init =====
+  // Initialize search
+  window.NotebookSearch.init(function (result) {
+    // Navigate to the selected result
+    state.activeNotebookId = result.notebookId;
+    const nb = getActiveNotebook();
+    if (nb) {
+      nb.activeFolderId = result.folderId;
+      nb.activeTabId = result.tabId;
+      nb.activePageId = result.pageId;
+    }
+    debouncedSave();
+    render();
+  });
+
+  document.getElementById('search-btn').addEventListener('click', function () {
+    window.NotebookSearch.show();
+  });
+
   // Initialize markdown toolbar (insert before editor container, inside content panel)
   var contentPanel = document.getElementById('content-panel');
   window.MarkdownToolbar.init(editorEl, contentPanel, () => {
