@@ -93,6 +93,7 @@
         <!-- Top-level Admin Tabs -->
         <div class="admin-tabs admin-tabs-top">
           <button class="admin-tab-top active" data-admin-tab="admin-backup">Backup</button>
+          <button class="admin-tab-top" data-admin-tab="admin-global-labels">Global Labels</button>
           <button class="admin-tab-top" data-admin-tab="admin-labels">Label Macro</button>
         </div>
 
@@ -168,6 +169,19 @@
               <div id="notebook-storage-info" class="storage-info"></div>
             </section>
           </div>
+        </div>
+
+        <!-- ===== Global Labels Tab ===== -->
+        <div id="admin-global-labels" class="admin-tab-top-content hidden">
+          <section class="admin-section">
+            <h3>Global Labels</h3>
+            <p>Labels defined here are available across all notebooks. They appear in the label dropdown with a ⊛ indicator.</p>
+            <div id="global-labels-list"></div>
+            <div class="manage-labels-add" id="global-labels-add">
+              <input type="text" id="global-label-input" placeholder="New global label name...">
+              <button id="global-label-add-btn" class="admin-action-btn" style="padding:6px 12px;font-size:12px">+ Add</button>
+            </div>
+          </section>
         </div>
 
         <!-- ===== Label Macro Tab ===== -->

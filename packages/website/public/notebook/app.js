@@ -1030,8 +1030,9 @@
       const dotsContainer = document.createElement('span');
       dotsContainer.className = 'page-label-dots';
       const nbLabels = nb.labels || [];
+      const allLbls = nbLabels.concat(state.globalLabels || []);
       page.labelIds.slice(0, 5).forEach(lblId => {
-        const lbl = nbLabels.find(l => l.id === lblId);
+        const lbl = allLbls.find(l => l.id === lblId);
         if (lbl) {
           const dot = document.createElement('span');
           dot.className = 'page-label-dot';
@@ -1887,7 +1888,8 @@
 
     // Render assigned label pills
     pageLabels.forEach(lblId => {
-      const lbl = nb.labels.find(l => l.id === lblId);
+      let lbl = nb.labels.find(l => l.id === lblId);
+      if (!lbl && state.globalLabels) lbl = state.globalLabels.find(l => l.id === lblId);
       if (!lbl) return;
       const pill = document.createElement('span');
       pill.className = 'content-label-pill';
@@ -1938,11 +1940,18 @@
     const dropdown = document.createElement('div');
     dropdown.className = 'label-dropdown';
 
-    if (nb.labels.length === 0) {
+    // Combine notebook labels + global labels
+    const allLabels = (nb.labels || []).slice();
+    const globalLabels = (state.globalLabels || []).map(l => Object.assign({}, l, { isGlobal: true }));
+    globalLabels.forEach(gl => {
+      if (!allLabels.find(l => l.id === gl.id)) allLabels.push(gl);
+    });
+
+    if (allLabels.length === 0) {
       dropdown.innerHTML = '<div class="label-dropdown-empty">No labels yet. Use ☰ menu → Manage Labels to create one.</div>';
     } else {
       // Sort: assigned labels first, then unassigned alphabetically
-      const sorted = nb.labels.slice().sort((a, b) => {
+      const sorted = allLabels.slice().sort((a, b) => {
         const aAssigned = page.labelIds.includes(a.id);
         const bAssigned = page.labelIds.includes(b.id);
         if (aAssigned && !bAssigned) return -1;
@@ -1953,7 +1962,8 @@
         const item = document.createElement('div');
         item.className = 'label-dropdown-item';
         const isAssigned = page.labelIds.includes(lbl.id);
-        item.innerHTML = '<span class="lbl-dot" style="background:' + lbl.color + '"></span><span>' + escapeHtml(lbl.name) + '</span>' + (isAssigned ? '<span class="lbl-check">✓</span>' : '');
+        const globalIndicator = lbl.isGlobal ? ' <span style="font-size:10px;color:var(--text-muted)">⊛</span>' : '';
+        item.innerHTML = '<span class="lbl-dot" style="background:' + lbl.color + '"></span><span>' + escapeHtml(lbl.name) + globalIndicator + '</span>' + (isAssigned ? '<span class="lbl-check">✓</span>' : '');
         item.addEventListener('click', (e) => {
           e.stopPropagation();
           if (isAssigned) {
@@ -3401,6 +3411,91 @@
     }
   });
 
+  // ===== Global Labels =====
+  if (!state.globalLabels) state.globalLabels = [];
+
+  function renderGlobalLabelsList() {
+    const listEl = document.getElementById('global-labels-list');
+    listEl.innerHTML = '';
+    if (state.globalLabels.length === 0) {
+      listEl.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No global labels defined yet.</p>';
+      return;
+    }
+    state.globalLabels.forEach(lbl => {
+      const row = document.createElement('div');
+      row.className = 'manage-label-row';
+      row.innerHTML = '<span class="lbl-dot" style="background:' + lbl.color + ';width:12px;height:12px;border-radius:50%;flex-shrink:0"></span><span class="manage-label-name">' + escapeHtml(lbl.name) + ' <span style="font-size:10px;color:var(--text-muted)">⊛ global</span></span>';
+
+      const actions = document.createElement('span');
+      actions.className = 'manage-label-actions';
+
+      const editBtn = document.createElement('button');
+      editBtn.textContent = '✎';
+      editBtn.title = 'Rename';
+      editBtn.addEventListener('click', () => {
+        const newName = prompt('Rename global label:', lbl.name);
+        if (newName && newName.trim()) {
+          lbl.name = newName.trim();
+          debouncedSave();
+          renderGlobalLabelsList();
+        }
+      });
+
+      const colorBtn = document.createElement('button');
+      colorBtn.textContent = '🎨';
+      colorBtn.title = 'Change color';
+      colorBtn.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'color';
+        input.value = lbl.color;
+        input.style.position = 'fixed';
+        input.style.top = '-100px';
+        document.body.appendChild(input);
+        input.addEventListener('input', () => { lbl.color = input.value; debouncedSave(); renderGlobalLabelsList(); });
+        input.addEventListener('change', () => { setTimeout(() => input.remove(), 100); });
+        input.click();
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '✕';
+      delBtn.title = 'Delete';
+      delBtn.addEventListener('click', () => {
+        if (!confirm('Delete global label "' + lbl.name + '"?')) return;
+        state.globalLabels = state.globalLabels.filter(l => l.id !== lbl.id);
+        debouncedSave();
+        renderGlobalLabelsList();
+      });
+
+      actions.appendChild(editBtn);
+      actions.appendChild(colorBtn);
+      actions.appendChild(delBtn);
+      row.appendChild(actions);
+      listEl.appendChild(row);
+    });
+  }
+
+  document.getElementById('global-label-add-btn').addEventListener('click', () => {
+    const input = document.getElementById('global-label-input');
+    const name = input.value.trim();
+    if (!name) return;
+    if (state.globalLabels.find(l => l.name === name)) {
+      alert('Global label "' + name + '" already exists.');
+      return;
+    }
+    const colors = ['#89b4fa', '#a6e3a1', '#f9e2af', '#f38ba8', '#cba6f7', '#fab387', '#94e2d5'];
+    state.globalLabels.push({ id: generateId('glbl'), name: name, color: colors[state.globalLabels.length % colors.length] });
+    input.value = '';
+    debouncedSave();
+    renderGlobalLabelsList();
+  });
+
+  document.getElementById('global-label-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('global-label-add-btn').click();
+  });
+
+  // Render on admin open
+  adminBtn.addEventListener('click', () => { renderGlobalLabelsList(); });
+
   // ===== Label Macros =====
   const createMacroBtn = document.getElementById('create-macro-btn');
   const macroListEl = document.getElementById('macro-list');
@@ -3409,18 +3504,7 @@
   if (!state.macros) state.macros = [];
 
   function getAllUniqueLabels() {
-    const labels = [];
-    const seen = new Set();
-    state.notebooks.forEach(nb => {
-      if (!nb.labels) return;
-      nb.labels.forEach(lbl => {
-        if (!seen.has(lbl.id)) {
-          seen.add(lbl.id);
-          labels.push({ id: lbl.id, name: lbl.name, color: lbl.color });
-        }
-      });
-    });
-    return labels;
+    return (state.globalLabels || []).map(lbl => ({ id: lbl.id, name: lbl.name, color: lbl.color }));
   }
 
   function getLabelsWithoutMacro() {
