@@ -50,7 +50,7 @@ window.NoteUtils = (function () {
   }
 
   function autoLinkify(text) {
-    var urlRegex = /(\bhttps?:\/\/[^\s<]+)|(\bwww\.[^\s<]+)/gi;
+    var urlRegex = /(\bhttps?:\/\/[^\s<]+)|(\bwww\.[^\s<]+)|(file:\/\/\/[^\s<]+)/gi;
     return text.replace(urlRegex, function (match) {
       var href = match;
       if (match.startsWith('www.')) {

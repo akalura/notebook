@@ -1700,9 +1700,15 @@
         previewEl.querySelectorAll('pre code').forEach(block => {
           Prism.highlightElement(block);
         });
+        // Linkify bare file:/// URLs in text nodes
+        previewEl.querySelectorAll('p, li, td, blockquote').forEach(el => {
+          if (el.querySelector('a')) return; // skip if already has links inside
+          el.innerHTML = el.innerHTML.replace(/(file:\/\/\/[^\s<"]+)/gi, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+        });
         // Open external links in new window (not internal nb:// links)
         previewEl.querySelectorAll('a').forEach(a => {
-          if (!a.getAttribute('href').startsWith('nb://')) {
+          const href = a.getAttribute('href') || '';
+          if (!href.startsWith('nb://')) {
             a.setAttribute('target', '_blank');
             a.setAttribute('rel', 'noopener noreferrer');
           }
