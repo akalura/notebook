@@ -922,6 +922,19 @@
 
     if (timedViewActive) {
       renderTimedView(activeTab);
+    } else if (favoritesViewActive) {
+      // Show only favorite pages (flat list, no tree)
+      let favPages = activeTab.pages.filter(p => p.favorite);
+      if (favPages.length === 0) {
+        const emptyEl = document.createElement('li');
+        emptyEl.style.cssText = 'padding:16px;color:var(--text-muted);font-size:13px;text-align:center';
+        emptyEl.textContent = 'No favorite pages in this tab.';
+        pageListEl.appendChild(emptyEl);
+      } else {
+        favPages.forEach(page => {
+          renderPageItem(page, activeTab, 0);
+        });
+      }
     } else {
       // Render tree structure (apply label filter if active)
       let topLevel = activeTab.pages.filter(l => !l.parentPageId);
@@ -1022,7 +1035,11 @@
 
     const nameSpan = document.createElement('span');
     nameSpan.className = 'label-name';
-    nameSpan.textContent = page.name;
+    if (page.favorite) {
+      nameSpan.innerHTML = '<span class="page-fav-star">★</span> ' + escapeHtml(page.name);
+    } else {
+      nameSpan.textContent = page.name;
+    }
     li.appendChild(nameSpan);
 
     // Label color dots
@@ -1208,6 +1225,21 @@
 
     const menu = document.createElement('div');
     menu.className = 'context-menu';
+
+    // Toggle favorite
+    const isFav = page.favorite === true;
+    const favItem = createMenuItem(isFav ? '★' : '☆', isFav ? 'Remove from Favorites' : 'Add to Favorites');
+    favItem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeContextMenu();
+      page.favorite = !isFav;
+      debouncedSave();
+      renderPages();
+      renderContent();
+    });
+    menu.appendChild(favItem);
+
+    menu.appendChild(createSeparator());
 
     // Create sub-label
     const subLabelItem = createMenuItem('＋', 'Create Sub Page');
@@ -1541,6 +1573,23 @@
     }
     contentTitle.innerHTML = '<span class="content-title-name">' + escapeHtml(activePage.name) + '</span>' + metaHtml;
     contentTitle.title = 'Double-click to rename';
+
+    // Favorite toggle in toolbar
+    const favToggleBtn = document.getElementById('fav-toggle-btn');
+    if (activePage.favorite) {
+      favToggleBtn.classList.add('fav-active');
+      favToggleBtn.title = 'Remove from Favorites';
+    } else {
+      favToggleBtn.classList.remove('fav-active');
+      favToggleBtn.title = 'Add to Favorites';
+    }
+    favToggleBtn.onclick = () => {
+      activePage.favorite = !activePage.favorite;
+      debouncedSave();
+      renderPages();
+      renderContent();
+    };
+
     contentTitle.ondblclick = () => {
       const input = document.createElement('input');
       input.type = 'text';
@@ -2131,9 +2180,30 @@
       e.stopPropagation();
       closeContextMenu();
       timedViewActive = false;
+      favoritesViewActive = false;
       renderPages();
     });
     menu.appendChild(defaultItem);
+
+    // Favorites view (current tab only)
+    const favItem = createMenuItem('★', favoritesViewActive ? 'Show All Pages' : 'Favorites (This Tab)');
+    favItem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeContextMenu();
+      favoritesViewActive = !favoritesViewActive;
+      timedViewActive = false;
+      renderPages();
+    });
+    menu.appendChild(favItem);
+
+    // All Favorites panel (across all tabs)
+    const allFavItem = createMenuItem('★', window.FavoritesPanel.isVisible() ? 'Close All Favorites' : 'All Favorites (Notebook)');
+    allFavItem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeContextMenu();
+      window.FavoritesPanel.toggle();
+    });
+    menu.appendChild(allFavItem);
 
     menu.appendChild(createSeparator());
 
@@ -2251,6 +2321,7 @@
 
   // ===== Timed View =====
   let timedViewActive = false;
+  let favoritesViewActive = false;
   let activeLabelFilter = null; // null = no filter, or label ID
 
   function showFilterLabelDropdown(x, y) {
@@ -3657,6 +3728,26 @@
   };
 
   // ===== Init =====
+  // Initialize favorites panel
+  window.FavoritesPanel.init(
+    function (result) {
+      // Navigate to the page's natural location
+      const nb = getActiveNotebook();
+      if (nb) {
+        nb.activeFolderId = result.folderId;
+        nb.activeTabId = result.tabId;
+        nb.activePageId = result.pageId;
+      }
+      debouncedSave();
+      render();
+    },
+    function () {
+      // Provide current state info
+      const nb = getActiveNotebook();
+      return { notebook: nb, folderId: nb ? nb.activeFolderId : null };
+    }
+  );
+
   // Initialize search
   window.NotebookSearch.init(function (result) {
     // Navigate to the selected result

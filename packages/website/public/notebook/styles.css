@@ -564,6 +564,7 @@ html, body {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  position: relative;
 }
 
 #add-label-btn {
@@ -2070,4 +2071,130 @@ html, body {
 
 .search-label-dropdown-item:hover {
   background: var(--bg-overlay);
+}
+
+/* Favorites */
+.page-fav-star {
+  color: var(--accent-yellow);
+  font-size: 16px;
+}
+
+.fav-btn {
+  color: var(--text-muted);
+}
+
+.fav-btn.fav-active {
+  color: var(--accent-yellow);
+}
+
+.fav-btn.fav-active svg {
+  fill: var(--accent-yellow);
+}
+
+.fav-btn:hover {
+  color: var(--accent-yellow);
+}
+
+/* Favorites Panel (Overlay) */
+.fav-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 220px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  animation: favPanelIn 0.15s ease-out;
+}
+
+.fav-panel.hidden {
+  display: none;
+}
+
+@keyframes favPanelIn {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.fav-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.fav-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-yellow);
+}
+
+.fav-panel-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.fav-panel-close:hover {
+  background: var(--bg-overlay);
+  color: var(--accent-red);
+}
+
+.fav-panel-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 8px;
+}
+
+.fav-panel-empty {
+  padding: 20px 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.fav-panel-group-header {
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 8px;
+}
+
+.fav-panel-group-header:first-child {
+  margin-top: 0;
+}
+
+.fav-panel-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.1s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fav-panel-item:hover {
+  background: var(--bg-overlay);
+}
+
+.fav-panel-star {
+  color: var(--accent-yellow);
+  font-size: 12px;
+  flex-shrink: 0;
 }
