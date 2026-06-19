@@ -292,11 +292,17 @@
   // ===== Render Functions =====
   function renderBreadcrumb() {
     const nb = getActiveNotebook();
+    const notebookSelector = document.getElementById('notebook-selector');
+    const navDividerNb = document.getElementById('nav-divider-notebook');
     if (!nb || !nb.activeFolderId) {
       breadcrumbEl.classList.add('hidden');
+      notebookSelector.classList.remove('hidden');
+      navDividerNb.classList.remove('hidden');
       return;
     }
     breadcrumbEl.classList.remove('hidden');
+    notebookSelector.classList.add('hidden');
+    navDividerNb.classList.add('hidden');
     breadcrumbEl.innerHTML = '';
 
     // Notebook name
@@ -1694,10 +1700,12 @@
         previewEl.querySelectorAll('pre code').forEach(block => {
           Prism.highlightElement(block);
         });
-        // Open all links in new window
+        // Open external links in new window (not internal nb:// links)
         previewEl.querySelectorAll('a').forEach(a => {
-          a.setAttribute('target', '_blank');
-          a.setAttribute('rel', 'noopener noreferrer');
+          if (!a.getAttribute('href').startsWith('nb://')) {
+            a.setAttribute('target', '_blank');
+            a.setAttribute('rel', 'noopener noreferrer');
+          }
         });
         break;
 
@@ -2458,6 +2466,22 @@
       btn.style.color = 'var(--accent-green)';
       setTimeout(() => {
         btn.title = 'Copy content to clipboard';
+        btn.style.color = '';
+      }, 1500);
+    });
+  });
+
+  // Copy page link to clipboard
+  document.getElementById('copy-link-btn').addEventListener('click', () => {
+    const activePage = getActivePage();
+    if (!activePage) return;
+    const link = '[' + activePage.name + '](nb://' + activePage.id + ')';
+    navigator.clipboard.writeText(link).then(() => {
+      const btn = document.getElementById('copy-link-btn');
+      btn.title = 'Link copied!';
+      btn.style.color = 'var(--accent-green)';
+      setTimeout(() => {
+        btn.title = 'Copy page link';
         btn.style.color = '';
       }, 1500);
     });
@@ -3745,6 +3769,27 @@
       // Provide current state info
       const nb = getActiveNotebook();
       return { notebook: nb, folderId: nb ? nb.activeFolderId : null };
+    }
+  );
+
+  // Initialize page links
+  window.PageLinks.init(
+    function (result) {
+      // Navigate to linked page — save current state to history first
+      const nb = getActiveNotebook();
+      if (nb) pushNavHistory(nb);
+      state.activeNotebookId = result.notebookId;
+      const targetNb = getActiveNotebook();
+      if (targetNb) {
+        targetNb.activeFolderId = result.folderId;
+        targetNb.activeTabId = result.tabId;
+        targetNb.activePageId = result.pageId;
+      }
+      debouncedSave();
+      render();
+    },
+    function () {
+      return { state: state };
     }
   );
 

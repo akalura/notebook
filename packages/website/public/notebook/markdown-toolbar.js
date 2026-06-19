@@ -30,7 +30,9 @@ window.MarkdownToolbar = (function () {
     { id: 'sep4', separator: true },
     { id: 'checkbox', label: 'Checkbox', icon: '☐', shortcut: null, prefix: '- [ ] ', suffix: '', block: true },
     { id: 'sep5', separator: true },
-    { id: 'datetime', label: 'Date/Time', icon: '📅', shortcut: null, prefix: '', suffix: '', dynamic: true }
+    { id: 'datetime', label: 'Date/Time', icon: '📅', shortcut: null, prefix: '', suffix: '', dynamic: true },
+    { id: 'sep6', separator: true },
+    { id: 'pagelink', label: 'Page Link', icon: '📄', shortcut: null, prefix: '', suffix: '', dynamic: true }
   ];
 
   var toolbarEl = null;
@@ -95,6 +97,11 @@ window.MarkdownToolbar = (function () {
       textareaEl.value = before + dateStr + after;
       textareaEl.selectionStart = textareaEl.selectionEnd = start + dateStr.length;
       if (onChangeCallback) onChangeCallback();
+      return;
+    }
+
+    if (action.dynamic && action.id === 'pagelink') {
+      window.PageLinks.showPagePicker(textareaEl, onChangeCallback);
       return;
     }
 

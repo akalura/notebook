@@ -2198,3 +2198,24 @@ html, body {
   font-size: 12px;
   flex-shrink: 0;
 }
+
+/* Internal Page Links (nb://) */
+a[href^="nb://"] {
+  color: var(--accent-green);
+  text-decoration: underline dashed;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+a[href^="nb://"]::before {
+  content: '🔗 ';
+  font-size: 15px;
+}
+
+a[href^="nb://"]:hover {
+  color: var(--accent);
+  text-decoration: underline solid;
+  background: rgba(166, 227, 161, 0.1);
+  border-radius: 3px;
+  padding: 1px 2px;
+}
