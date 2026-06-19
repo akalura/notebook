@@ -2169,6 +2169,11 @@
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
   }
 
+  // ===== All Favorites Button =====
+  document.getElementById('all-fav-btn').addEventListener('click', () => {
+    window.FavoritesPanel.toggle();
+  });
+
   // ===== Page Menu (hamburger) =====
   const pageMenuBtn = document.getElementById('page-menu-btn');
   pageMenuBtn.addEventListener('click', (e) => {
@@ -2203,15 +2208,6 @@
       renderPages();
     });
     menu.appendChild(favItem);
-
-    // All Favorites panel (across all tabs)
-    const allFavItem = createMenuItem('★', window.FavoritesPanel.isVisible() ? 'Close All Favorites' : 'All Favorites (Notebook)');
-    allFavItem.addEventListener('click', (e) => {
-      e.stopPropagation();
-      closeContextMenu();
-      window.FavoritesPanel.toggle();
-    });
-    menu.appendChild(allFavItem);
 
     menu.appendChild(createSeparator());
 

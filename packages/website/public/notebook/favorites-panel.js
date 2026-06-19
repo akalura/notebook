@@ -29,6 +29,12 @@ window.FavoritesPanel = (function () {
     document.getElementById('left-panel').appendChild(panelEl);
     listEl = panelEl.querySelector('.fav-panel-list');
     panelEl.querySelector('.fav-panel-close').addEventListener('click', hide);
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && isOpen) {
+        hide();
+      }
+    });
   }
 
   function show() {

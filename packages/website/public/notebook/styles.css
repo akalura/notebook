@@ -355,7 +355,7 @@ html, body {
 }
 
 .group-tab {
-  padding: 12px 14px 8px;
+  padding: 8px 8px 6px;
   background: none;
   border: 5px solid transparent;
   border-bottom: none;
@@ -1900,7 +1900,8 @@ html, body {
   display: flex;
   flex-direction: column;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
 }
 
 .search-input-wrap {
@@ -1942,6 +1943,7 @@ html, body {
   overflow-y: auto;
   flex: 1;
   padding: 8px;
+  max-height: 360px;
 }
 
 .search-empty {
@@ -2102,13 +2104,19 @@ html, body {
   left: 0;
   bottom: 0;
   width: 220px;
-  background: var(--bg-surface);
-  border-right: 1px solid var(--border);
-  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.2);
+  background: #2d2b3d;
+  border-right: 3px solid var(--accent-yellow);
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
   z-index: 100;
   display: flex;
   flex-direction: column;
   animation: favPanelIn 0.15s ease-out;
+}
+
+[data-theme="light"] .fav-panel {
+  background: #fdf6e3;
+  border-right-color: var(--accent-yellow);
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.12);
 }
 
 .fav-panel.hidden {
@@ -2125,13 +2133,19 @@ html, body {
   align-items: center;
   justify-content: space-between;
   padding: 12px 12px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid rgba(249, 226, 175, 0.2);
+  background: rgba(249, 226, 175, 0.08);
   flex-shrink: 0;
 }
 
+[data-theme="light"] .fav-panel-header {
+  border-bottom-color: rgba(223, 142, 29, 0.2);
+  background: rgba(223, 142, 29, 0.06);
+}
+
 .fav-panel-title {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--accent-yellow);
 }
 
@@ -2141,12 +2155,12 @@ html, body {
   color: var(--text-muted);
   font-size: 14px;
   cursor: pointer;
-  padding: 2px 6px;
+  padding: 4px 8px;
   border-radius: 4px;
 }
 
 .fav-panel-close:hover {
-  background: var(--bg-overlay);
+  background: rgba(243, 139, 168, 0.15);
   color: var(--accent-red);
 }
 
@@ -2157,20 +2171,21 @@ html, body {
 }
 
 .fav-panel-empty {
-  padding: 20px 12px;
+  padding: 24px 12px;
   text-align: center;
   color: var(--text-muted);
   font-size: 12px;
 }
 
 .fav-panel-group-header {
-  padding: 6px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
+  padding: 8px 8px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-yellow);
   text-transform: uppercase;
-  letter-spacing: 0.3px;
-  margin-top: 8px;
+  letter-spacing: 0.5px;
+  margin-top: 10px;
+  border-bottom: 1px solid rgba(249, 226, 175, 0.15);
 }
 
 .fav-panel-group-header:first-child {
@@ -2190,12 +2205,16 @@ html, body {
 }
 
 .fav-panel-item:hover {
-  background: var(--bg-overlay);
+  background: rgba(249, 226, 175, 0.12);
+}
+
+[data-theme="light"] .fav-panel-item:hover {
+  background: rgba(223, 142, 29, 0.1);
 }
 
 .fav-panel-star {
   color: var(--accent-yellow);
-  font-size: 12px;
+  font-size: 13px;
   flex-shrink: 0;
 }
 
