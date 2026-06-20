@@ -130,6 +130,9 @@
   // Migrate notebooks: ensure all fields
   migrateNotebooks(state.notebooks);
 
+  // Ensure attachments array exists
+  if (!state.attachments) state.attachments = [];
+
   // Helper to get active notebook
   function getActiveNotebook() {
     return state.notebooks.find(nb => nb.id === state.activeNotebookId) || state.notebooks[0] || null;
@@ -888,14 +891,35 @@
     input.type = 'text';
     input.className = 'group-tab-input';
     input.value = group.name;
+    const originalName = group.name;
     tabEl.textContent = '';
     tabEl.appendChild(input);
     input.focus();
     input.select();
+    let finished = false;
 
     function finish() {
+      if (finished) return;
+      finished = true;
       const newName = input.value.trim();
-      if (newName) group.name = newName;
+      if (newName && newName !== originalName) {
+        // Enforce unique folder names at the same hierarchy level
+        if (group.isFolder) {
+          const nb = getActiveNotebook();
+          if (nb) {
+            const siblings = nb.tabs.filter(g => g.isFolder && g.parentTabId === group.parentTabId && g.id !== group.id);
+            if (siblings.some(g => g.name === newName)) {
+              alert('A folder named "' + newName + '" already exists at this level. Please choose a different name.');
+              // Revert to original name
+              group.name = originalName;
+              debouncedSave();
+              renderTabs();
+              return;
+            }
+          }
+        }
+        group.name = newName;
+      }
       debouncedSave();
       renderTabs();
     }
@@ -904,7 +928,7 @@
     input.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-      if (e.key === 'Escape') { input.value = group.name; input.blur(); }
+      if (e.key === 'Escape') { input.value = originalName; input.blur(); }
     });
     input.addEventListener('keyup', (e) => { e.stopPropagation(); });
     input.addEventListener('keypress', (e) => { e.stopPropagation(); });
@@ -1663,7 +1687,7 @@
     }
 
     if (imageTokens.length === 0) {
-      renderPreviewContent(content, type);
+      renderPreviewContent(window.NotebookAttachments.processTokens(content, state), type);
       return;
     }
 
@@ -1686,10 +1710,11 @@
           processedContent = processedContent.replace(token.full, '[image not found]');
         }
       });
+      processedContent = window.NotebookAttachments.processTokens(processedContent, state);
       renderPreviewContent(processedContent, type);
       attachImageResizeHandles();
     }).catch(() => {
-      renderPreviewContent(content, type);
+      renderPreviewContent(window.NotebookAttachments.processTokens(content, state), type);
     });
   }
 
@@ -1917,9 +1942,19 @@
   addFolderBtn.addEventListener('click', () => {
     const nb = getActiveNotebook();
     if (!nb) return;
+
+    // Generate unique folder name at this hierarchy level
+    const siblingFolders = nb.tabs.filter(g => g.isFolder && g.parentTabId === nb.activeFolderId);
+    let folderName = 'New Folder';
+    let counter = 2;
+    while (siblingFolders.some(g => g.name === folderName)) {
+      folderName = 'New Folder ' + counter;
+      counter++;
+    }
+
     const newFolder = {
       id: generateId('container'),
-      name: 'New Folder',
+      name: folderName,
       isFolder: true,
       parentTabId: nb.activeFolderId,
       color: null,
@@ -3196,6 +3231,8 @@
         };
       }
       migrateNotebooks(state.notebooks);
+      if (!state.attachments) state.attachments = [];
+      if (!state.macros) state.macros = [];
       saveState();
 
       const totalNbs = state.notebooks.length;
@@ -3824,6 +3861,45 @@
     }
   });
   window.MarkdownToolbar.hide();
+
+  // Initialize attachments module
+  window.NotebookAttachments.init({
+    editor: editorEl,
+    editorContainer: editorContainer,
+    previewContainer: previewContainer,
+    getContext: function () {
+      const nb = getActiveNotebook();
+      const page = getActivePage();
+      // Build folder path from breadcrumb (notebook/folder hierarchy, no tabs)
+      var folderPath = '';
+      if (nb && nb.activeFolderId) {
+        var pathParts = [];
+        var currentId = nb.activeFolderId;
+        while (currentId) {
+          var folder = nb.tabs.find(function (g) { return g.id === currentId; });
+          if (!folder) break;
+          pathParts.unshift(folder.name);
+          currentId = folder.parentTabId;
+        }
+        folderPath = pathParts.join('/');
+      }
+      return {
+        page: page,
+        state: state,
+        notebookName: nb ? nb.name : '_default',
+        folderPath: folderPath,
+        mode: currentMode
+      };
+    },
+    onContentChange: function () {
+      const activePage = getActivePage();
+      if (activePage) {
+        activePage.content = editorEl.value;
+        activePage.updatedAt = new Date().toISOString();
+        debouncedSave();
+      }
+    }
+  });
 
   openImageDb().then(() => {
     render();

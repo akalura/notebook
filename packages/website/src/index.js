@@ -9,18 +9,77 @@ const PORT = process.env.PORT || 4000;
 // Backup folder (use BACKUP_DIR env var or default)
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, '../backup');
 const GDRIVE_BACKUP_DIR = 'G:\\My Drive\\notebook-backup';
+const ATTACHMENTS_DIR = 'C:\\myUtils\\notebook_attachments';
+
 if (!fs.existsSync(BACKUP_DIR)) {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
 }
 if (!fs.existsSync(GDRIVE_BACKUP_DIR)) {
   fs.mkdirSync(GDRIVE_BACKUP_DIR, { recursive: true });
 }
+if (!fs.existsSync(ATTACHMENTS_DIR)) {
+  fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true });
+}
 
-// Multer for file uploads
+// Multer for backup file uploads
 const upload = multer({
   dest: BACKUP_DIR,
   limits: { fileSize: 100 * 1024 * 1024 } // 100MB max
 });
+
+// Multer for attachment uploads (temp dir before moving to final location)
+const attachTmpDir = path.join(ATTACHMENTS_DIR, '.tmp');
+if (!fs.existsSync(attachTmpDir)) {
+  fs.mkdirSync(attachTmpDir, { recursive: true });
+}
+const attachmentUpload = multer({
+  dest: attachTmpDir,
+  limits: { fileSize: 200 * 1024 * 1024 } // 200MB max
+});
+
+// ===== Helpers =====
+
+function sanitizePathSegment(name) {
+  // Replace forbidden Windows filesystem characters
+  var safe = name.replace(/[<>:"\/\\|?*]/g, '_');
+  // Replace control characters
+  safe = safe.replace(/[\x00-\x1f]/g, '');
+  // Trim leading/trailing dots and spaces
+  safe = safe.replace(/^[\s.]+|[\s.]+$/g, '');
+  // Collapse multiple underscores
+  safe = safe.replace(/_+/g, '_');
+  // Reserved Windows names
+  if (/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i.test(safe)) {
+    safe = '_' + safe;
+  }
+  // Fallback
+  if (!safe) safe = '_unnamed';
+  // Limit length
+  if (safe.length > 100) safe = safe.substring(0, 100);
+  return safe;
+}
+
+function resolveVersionConflict(destDir, originalName) {
+  var filePath = path.join(destDir, originalName);
+  if (!fs.existsSync(filePath)) return originalName;
+
+  // Split at last dot for extension
+  var lastDot = originalName.lastIndexOf('.');
+  var stem, ext;
+  if (lastDot > 0) {
+    stem = originalName.substring(0, lastDot);
+    ext = originalName.substring(lastDot);
+  } else {
+    stem = originalName;
+    ext = '';
+  }
+
+  var version = 2;
+  while (fs.existsSync(path.join(destDir, stem + '_v' + version + ext))) {
+    version++;
+  }
+  return stem + '_v' + version + ext;
+}
 
 // ===== Backup API (before static middleware) =====
 
@@ -109,6 +168,85 @@ app.get('/notebook/api/backups-gdrive', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ===== Attachment API =====
+
+// Upload attachment file
+app.post('/notebook/api/attachment', attachmentUpload.single('file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+
+  var notebookName = (req.body && req.body.notebookName) || '_default';
+  var folderPath = (req.body && req.body.folderPath) || '';
+
+  // Sanitize notebook name
+  var safeNotebook = sanitizePathSegment(notebookName);
+
+  // Sanitize folder path segments
+  var safeFolders = [];
+  if (folderPath && folderPath.trim()) {
+    safeFolders = folderPath.split('/').filter(Boolean).map(sanitizePathSegment);
+  }
+
+  // Build destination directory
+  var destDir = path.join(ATTACHMENTS_DIR, safeNotebook);
+  if (safeFolders.length > 0) {
+    destDir = path.join(destDir, ...safeFolders);
+  }
+
+  // Create directory structure
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true });
+  }
+
+  // Sanitize the original filename
+  var originalName = req.file.originalname || 'unnamed_file';
+  var safeFileName = sanitizePathSegment(originalName.replace(/\.[^.]+$/, ''));
+  var extMatch = originalName.match(/\.[^.]+$/);
+  var ext = extMatch ? extMatch[0].toLowerCase() : '';
+  var targetName = safeFileName + ext;
+
+  // Resolve version conflicts
+  var finalName = resolveVersionConflict(destDir, targetName);
+  var finalPath = path.join(destDir, finalName);
+
+  // Move file from temp to destination
+  try {
+    fs.renameSync(req.file.path, finalPath);
+  } catch (moveErr) {
+    // Cross-device: copy then delete
+    try {
+      fs.copyFileSync(req.file.path, finalPath);
+      fs.unlinkSync(req.file.path);
+    } catch (copyErr) {
+      return res.status(500).json({ error: 'Failed to store file: ' + copyErr.message });
+    }
+  }
+
+  // Build relative path (from ATTACHMENTS_DIR)
+  var relativePath = path.relative(ATTACHMENTS_DIR, finalPath).replace(/\\/g, '/');
+
+  // Generate unique ID
+  var attachId = 'attach-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+
+  res.json({
+    id: attachId,
+    fileName: finalName,
+    originalName: originalName,
+    relativePath: relativePath,
+    size: req.file.size,
+    mimeType: req.file.mimetype || 'application/octet-stream'
+  });
+});
+
+// Multer error handler (file size limit)
+app.use(function (err, req, res, next) {
+  if (err && err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'File exceeds maximum size of 200MB' });
+  }
+  next(err);
 });
 
 // ===== Static files & page routes =====

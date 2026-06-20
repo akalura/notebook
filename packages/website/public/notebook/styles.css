@@ -2238,3 +2238,127 @@ a[href^="nb://"]:hover {
   border-radius: 3px;
   padding: 1px 2px;
 }
+
+/* ===== Attachments ===== */
+
+/* Drop zone overlay */
+.attachment-drop-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(137, 180, 250, 0.08);
+  border: 3px dashed var(--accent);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  pointer-events: none;
+  animation: dropFadeIn 0.15s ease-out;
+}
+
+@keyframes dropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.attachment-drop-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.attachment-drop-content .icon-lg {
+  width: 32px;
+  height: 32px;
+}
+
+/* Upload status indicator */
+.attachment-status {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-overlay);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 101;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+}
+
+/* Attachment link in preview */
+.attachment-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  background: rgba(250, 179, 135, 0.15);
+  border: 1px solid var(--accent-orange);
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-orange);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.1s;
+  vertical-align: middle;
+  line-height: 1.6;
+}
+
+.attachment-link:hover {
+  background: rgba(250, 179, 135, 0.25);
+  transform: scale(1.02);
+}
+
+.attachment-link:active {
+  transform: scale(0.97);
+}
+
+.attachment-link .attachment-icon {
+  font-size: 13px;
+}
+
+.attachment-link.attachment-missing {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+  background: rgba(243, 139, 168, 0.1);
+  cursor: default;
+}
+
+/* Attachment toast notification */
+.attachment-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent-green);
+  color: #1e1e2e;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 99999;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  animation: toastIn 0.2s ease-out;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.attachment-toast.fade-out {
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
