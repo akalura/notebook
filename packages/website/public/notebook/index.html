@@ -36,6 +36,7 @@
         <button id="tabs-scroll-right" class="tabs-scroll-btn hidden" title="Scroll right"><i data-lucide="chevron-right" class="icon-xs"></i></button>
       </div>
       <div id="nav-actions">
+        <button id="import-links-btn" class="btn-icon" title="Import Staged Links" style="display:none"><i data-lucide="download" class="icon-sm"></i></button>
         <button id="search-btn" class="btn-icon" title="Search (Ctrl+K)"><i data-lucide="search" class="icon-sm"></i></button>
         <button id="theme-btn" class="btn-icon" title="Toggle Theme"><i data-lucide="sun" class="icon-sm"></i></button>
         <button id="admin-btn" class="btn-icon" title="Admin"><i data-lucide="settings" class="icon-sm"></i></button>
@@ -99,6 +100,7 @@
           <button class="admin-tab-top active" data-admin-tab="admin-backup">Backup</button>
           <button class="admin-tab-top" data-admin-tab="admin-global-labels">Global Labels</button>
           <button class="admin-tab-top" data-admin-tab="admin-labels">Label Macro</button>
+          <button class="admin-tab-top" data-admin-tab="admin-link-sync">Link Sync</button>
         </div>
 
         <!-- ===== Backup Tab ===== -->
@@ -198,6 +200,29 @@
           <section class="admin-section">
             <h3>Existing Macros</h3>
             <div id="macro-list"></div>
+          </section>
+        </div>
+
+        <!-- ===== Link Sync Tab ===== -->
+        <div id="admin-link-sync" class="admin-tab-top-content hidden">
+          <section class="admin-section">
+            <h3>Sync Links from Firebase</h3>
+            <p>Pull pending links from Firebase, fetch metadata via link preview, and stage them for import into a notebook page.</p>
+            <div class="admin-row" style="gap:8px;flex-wrap:wrap">
+              <button id="sync-trigger-btn" class="admin-action-btn">🔄 Run Sync</button>
+              <button id="sync-trigger-fast-btn" class="admin-action-btn">⚡ Run Sync (No Preview)</button>
+            </div>
+            <div id="sync-status" class="admin-status" style="margin-top:10px"></div>
+          </section>
+          <section class="admin-section">
+            <h3>Last Sync</h3>
+            <div id="sync-last-info" class="storage-info">
+              <p style="color:var(--text-muted)">No sync has been run yet.</p>
+            </div>
+          </section>
+          <section class="admin-section">
+            <h3>Sync Output</h3>
+            <pre id="sync-output" style="background:var(--bg-deep);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;color:var(--text-secondary)">No output yet.</pre>
           </section>
         </div>
       </div>

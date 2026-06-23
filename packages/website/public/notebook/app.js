@@ -3777,7 +3777,101 @@
 
   // Render macro list when admin opens
   const origAdminClick = adminBtn.onclick;
-  adminBtn.addEventListener('click', () => { renderMacroList(); });
+  adminBtn.addEventListener('click', () => { renderMacroList(); loadSyncStatus(); });
+
+  // ===== Link Sync Tab =====
+  const syncTriggerBtn = document.getElementById('sync-trigger-btn');
+  const syncTriggerFastBtn = document.getElementById('sync-trigger-fast-btn');
+  const syncStatusEl = document.getElementById('sync-status');
+  const syncLastInfoEl = document.getElementById('sync-last-info');
+  const syncOutputEl = document.getElementById('sync-output');
+
+  function loadSyncStatus() {
+    fetch('/notebook/api/sync-status')
+      .then(function (r) { return r.json(); })
+      .then(function (status) {
+        renderSyncStatus(status);
+      })
+      .catch(function () {
+        syncLastInfoEl.innerHTML = '<p style="color:var(--text-muted)">Could not load sync status.</p>';
+      });
+  }
+
+  function renderSyncStatus(status) {
+    if (status.isRunning) {
+      syncStatusEl.className = 'admin-status info';
+      syncStatusEl.textContent = '⏳ Sync is currently running... (started ' + formatDate(status.startedAt) + ')';
+      syncTriggerBtn.disabled = true;
+      syncTriggerFastBtn.disabled = true;
+      // Poll for completion
+      setTimeout(loadSyncStatus, 5000);
+    } else {
+      syncStatusEl.textContent = '';
+      syncStatusEl.className = 'admin-status';
+      syncTriggerBtn.disabled = false;
+      syncTriggerFastBtn.disabled = false;
+    }
+
+    if (status.lastSync) {
+      var resultHtml = '<p><strong>Last Sync:</strong> ' + formatDate(status.lastSync) + '</p>';
+      if (status.lastResult) {
+        if (status.lastResult.success) {
+          resultHtml += '<p style="color:var(--accent-green)">✓ Sync completed successfully</p>';
+        } else {
+          resultHtml += '<p style="color:var(--accent-red)">✕ Sync failed: ' + escapeHtml(status.lastResult.error || 'Unknown error') + '</p>';
+        }
+      }
+      syncLastInfoEl.innerHTML = resultHtml;
+
+      if (status.lastResult && status.lastResult.output) {
+        syncOutputEl.textContent = status.lastResult.output;
+      } else {
+        syncOutputEl.textContent = 'No output captured.';
+      }
+    } else {
+      syncLastInfoEl.innerHTML = '<p style="color:var(--text-muted)">No sync has been run yet.</p>';
+      syncOutputEl.textContent = 'No output yet.';
+    }
+
+    // Refresh staged links check
+    checkStagedLinks();
+  }
+
+  function triggerSync(skipPreview) {
+    syncStatusEl.className = 'admin-status info';
+    syncStatusEl.textContent = '⏳ Starting sync...';
+    syncTriggerBtn.disabled = true;
+    syncTriggerFastBtn.disabled = true;
+
+    fetch('/notebook/api/sync-trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skipPreview: skipPreview })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) {
+          syncStatusEl.className = 'admin-status error';
+          syncStatusEl.textContent = '✕ ' + data.error;
+          syncTriggerBtn.disabled = false;
+          syncTriggerFastBtn.disabled = false;
+        } else {
+          syncStatusEl.className = 'admin-status info';
+          syncStatusEl.textContent = '⏳ Sync is running... This may take a few minutes.';
+          // Poll for completion
+          setTimeout(loadSyncStatus, 5000);
+        }
+      })
+      .catch(function (err) {
+        syncStatusEl.className = 'admin-status error';
+        syncStatusEl.textContent = '✕ Failed to trigger sync: ' + err.message;
+        syncTriggerBtn.disabled = false;
+        syncTriggerFastBtn.disabled = false;
+      });
+  }
+
+  syncTriggerBtn.addEventListener('click', function () { triggerSync(false); });
+  syncTriggerFastBtn.addEventListener('click', function () { triggerSync(true); });
 
   // ===== Execute Macro from Page =====
   // This is exposed so it can be triggered from the page context menu or labels
@@ -3861,6 +3955,124 @@
     }
   });
   window.MarkdownToolbar.hide();
+
+  // ===== Import Staged Links =====
+  const importLinksBtn = document.getElementById('import-links-btn');
+
+  function checkStagedLinks() {
+    fetch('/notebook/api/staged-links')
+      .then(function (res) { return res.json(); })
+      .then(function (batches) {
+        if (batches && batches.length > 0) {
+          importLinksBtn.style.display = '';
+          importLinksBtn.title = 'Import Staged Links (' + batches.length + ' batch)';
+          if (window.lucide) lucide.createIcons();
+        } else {
+          importLinksBtn.style.display = 'none';
+        }
+      })
+      .catch(function () {
+        importLinksBtn.style.display = 'none';
+      });
+  }
+
+  importLinksBtn.addEventListener('click', function () {
+    fetch('/notebook/api/staged-links')
+      .then(function (res) { return res.json(); })
+      .then(function (batches) {
+        if (!batches || batches.length === 0) {
+          alert('No staged links to import.');
+          return;
+        }
+        var totalLinks = 0;
+        batches.forEach(function (batch) {
+          importBatch(batch);
+          totalLinks += batch.linkCount || 0;
+        });
+        // Delete all batches from server
+        var deletePromises = batches.map(function (batch) {
+          return fetch('/notebook/api/staged-links/' + batch.id, { method: 'DELETE' });
+        });
+        Promise.all(deletePromises).then(function () {
+          importLinksBtn.style.display = 'none';
+          debouncedSave();
+          render();
+          alert('Imported ' + totalLinks + ' link(s) in ' + batches.length + ' page(s).');
+        });
+      })
+      .catch(function (err) {
+        alert('Failed to fetch staged links: ' + err.message);
+      });
+  });
+
+  function importBatch(batch) {
+    var nb = state.notebooks.find(function (n) { return n.name === batch.targetNotebook; });
+
+    // Create notebook if it doesn't exist
+    if (!nb && batch.autoCreateTab) {
+      nb = {
+        id: generateId('notebook'),
+        name: batch.targetNotebook,
+        activeTabId: null,
+        activePageId: null,
+        activeFolderId: null,
+        collapsedPages: {},
+        activePagePerTab: {},
+        tabs: []
+      };
+      state.notebooks.push(nb);
+    }
+    if (!nb) return;
+
+    // Find or create target folder
+    var targetParentId = null;
+    if (batch.targetFolder) {
+      var folder = nb.tabs.find(function (g) { return g.isFolder && g.name === batch.targetFolder && g.parentTabId === null; });
+      if (!folder && batch.autoCreateTab) {
+        folder = {
+          id: generateId('container'),
+          name: batch.targetFolder,
+          isFolder: true,
+          parentTabId: null,
+          color: null,
+          pages: []
+        };
+        nb.tabs.push(folder);
+      }
+      if (folder) targetParentId = folder.id;
+    }
+
+    // Find or create target tab
+    var tab = nb.tabs.find(function (g) { return !g.isFolder && g.name === batch.targetTab && g.parentTabId === targetParentId; });
+    if (!tab && batch.autoCreateTab) {
+      tab = {
+        id: generateId('tab'),
+        name: batch.targetTab,
+        isFolder: false,
+        parentTabId: targetParentId,
+        color: null,
+        pages: []
+      };
+      nb.tabs.push(tab);
+    }
+    if (!tab) return;
+
+    // Create the page
+    var page = {
+      id: generateId('page'),
+      name: batch.pageName || 'Imported Links',
+      contentType: batch.contentType || 'markdown',
+      content: batch.content || '',
+      parentPageId: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: null
+    };
+    tab.pages.push(page);
+  }
+
+  // Check for staged links on load and periodically
+  checkStagedLinks();
+  setInterval(checkStagedLinks, 60000);
 
   // Initialize attachments module
   window.NotebookAttachments.init({

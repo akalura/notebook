@@ -10,6 +10,12 @@
     "cli": "node src/index.js"
   },
   "dependencies": {
-    "js-yaml": "^4.1.0"
+    "firebase-admin": "^13.0.2",
+    "js-yaml": "^4.1.0",
+    "link-preview-js": "^3.0.5",
+    "node-fetch": "^3.3.2",
+    "puppeteer": "^23.9.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   }
 }

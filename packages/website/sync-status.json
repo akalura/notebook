@@ -1,0 +1,9 @@
+{
+  "lastSync": "2026-06-23T18:29:37.245Z",
+  "lastResult": {
+    "success": true,
+    "output": "Config loaded:\n  Target Notebook: Reading List\n  Target Tab:      Incoming Links\n  Target Folder:   (root)\n  Link Preview:    enabled\n  Include Processed: no\n  Dry Run:         no\n  Debug:           no\n---\nFetching pending links from Firebase...\nNo links found. Nothing to sync.\n"
+  },
+  "isRunning": false,
+  "startedAt": "2026-06-23T18:29:36.099Z"
+}

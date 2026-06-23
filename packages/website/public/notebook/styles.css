@@ -2362,3 +2362,14 @@ a[href^="nb://"]:hover {
   opacity: 0;
   transition: opacity 0.3s ease-out;
 }
+
+/* ===== Import Links Button ===== */
+#import-links-btn {
+  position: relative;
+  color: var(--accent-green);
+}
+
+#import-links-btn:hover {
+  background: var(--bg-overlay);
+  color: var(--accent-green);
+}
