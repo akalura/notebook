@@ -8,7 +8,7 @@ let initialized = false;
 function initFirebase() {
   if (db) return db;
   if (!initialized) {
-    const serviceAccount = require(path.join(__dirname, 'serviceAccountKey.json'));
+    const serviceAccount = require(path.resolve(__dirname, '../../../../secrets/serviceAccountKey.json'));
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)
     });

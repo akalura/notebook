@@ -1,4 +1,4 @@
 node_modules/
 packages/website/backup/
 .vscode/
-packages/utils/src/commands/serviceAccountKey.json
+secrets/

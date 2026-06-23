@@ -1,9 +1,9 @@
 {
-  "lastSync": "2026-06-23T18:29:37.245Z",
+  "lastSync": "2026-06-23T21:14:11.418Z",
   "lastResult": {
     "success": true,
-    "output": "Config loaded:\n  Target Notebook: Reading List\n  Target Tab:      Incoming Links\n  Target Folder:   (root)\n  Link Preview:    enabled\n  Include Processed: no\n  Dry Run:         no\n  Debug:           no\n---\nFetching pending links from Firebase...\nNo links found. Nothing to sync.\n"
+    "output": "Config loaded:\n  Target Notebook: Reading List\n  Target Tab:      Incoming Links\n  Target Folder:   (root)\n  Link Preview:    enabled\n  Include Processed: no\n  Dry Run:         no\n  Debug:           no\n---\nFetching pending links from Firebase...\nFound 2 link(s).\n---\nLaunching browser for link previews...\n[1/2] https://share.google/oawTm88eVnjzixBbu\n    Fetching preview...\n    Title: Internet Security by Zscaler\n    Desc:  Zscaler makes the internet safe for businesses by protecting their employees fro...\n[2/2] https://share.google/w9HUB7N1TyhFBCH8m\n    Fetching preview...\n    Title: 3 more free and open source (FOSS) apps that are better than their paid alternatives\n    Desc:  I stopped paying for software and started feeling a little ridiculous about all ...\n    Image: https://static0.howtogeekimages.com/wordpress/wp-content/uploads/wm/2026/06/proton-vpn-handy-and-upscayl-running-in-a-windows-11-pc-with-those-apps-saved-in-the-start-menu.jpg?w=1600&h=900&fit=crop\nBrowser closed.\n---\nAll links processed. Building page content...\nStaging to server...\nStaged successfully (batch: batch-1782249250383-8b5fbi)\nMarking 2 Firebase record(s) as processed...\n---\nDone! 2 link(s) staged.\nOpen the notebook app and click \"Import Links\" to create the page.\n"
   },
   "isRunning": false,
-  "startedAt": "2026-06-23T18:29:36.099Z"
+  "startedAt": "2026-06-23T21:13:49.399Z"
 }
