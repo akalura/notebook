@@ -3944,6 +3944,36 @@
     window.NotebookSearch.show();
   });
 
+  // Initialize structure view
+  window.StructureView.init(
+    function () {
+      return { state: state };
+    },
+    function (result) {
+      // Navigate to the selected notebook/folder/tab
+      state.activeNotebookId = result.notebookId;
+      const nb = getActiveNotebook();
+      if (nb) {
+        if (result.folderId) {
+          pushNavHistory(nb);
+          nb.activeFolderId = result.folderId;
+          nb.activeTabId = result.tabId || null;
+          nb.activePageId = null;
+        } else {
+          nb.activeFolderId = null;
+          nb.activeTabId = result.tabId || null;
+          nb.activePageId = null;
+        }
+      }
+      debouncedSave();
+      render();
+    }
+  );
+
+  document.getElementById('structure-btn').addEventListener('click', function () {
+    window.StructureView.toggle();
+  });
+
   // Initialize markdown toolbar (insert before editor container, inside content panel)
   var contentPanel = document.getElementById('content-panel');
   window.MarkdownToolbar.init(editorEl, contentPanel, () => {
