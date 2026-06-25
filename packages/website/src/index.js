@@ -254,7 +254,7 @@ app.use(function (err, req, res, next) {
 });
 
 // ===== Staged Links API =====
-const SYNC_CACHE_DIR = config.paths.syncCache;
+const SYNC_CACHE_DIR = config.paths.firebaseLinkSyncCache;
 if (!fs.existsSync(SYNC_CACHE_DIR)) {
   fs.mkdirSync(SYNC_CACHE_DIR, { recursive: true });
 }

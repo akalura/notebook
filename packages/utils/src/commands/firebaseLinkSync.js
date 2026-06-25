@@ -163,7 +163,7 @@ function buildPageContent(links, batchDate) {
 
 // ===== Sync Config =====
 function loadSyncConfig() {
-  const configPath = path.join(config.paths.syncCache, 'link-sync-config.json');
+  const configPath = path.join(config.paths.firebaseLinkSyncCache, 'link-sync-config.json');
   try {
     delete require.cache[require.resolve(configPath)];
     return require(configPath);

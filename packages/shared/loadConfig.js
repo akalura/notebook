@@ -14,7 +14,7 @@ const DEFAULTS = {
     attachmentBackup: 'C:\\myUtils\\cache\\attachmentsBackup',
     notebookBackup: 'C:\\myUtils\\cache\\notebookBackup',
     gdriveBackup: 'G:\\My Drive\\notebook-backup',
-    syncCache: 'C:\\myUtils\\cache\\utility_syncLinks'
+    firebaseLinkSyncCache: 'C:\\myUtils\\cache\\utility_firebaseLinkSync'
   },
   firebase: {
     serviceAccountKey: './secrets/serviceAccountKey.json',
