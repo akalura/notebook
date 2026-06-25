@@ -5,6 +5,7 @@ const clipboardConvertNewLineToCarriageReturn = require('./clipboardConvertNewLi
 const linkPreview = require('./linkPreview');
 const fetchLinks = require('./fetchLinks');
 const syncLinks = require('./syncLinks');
+const backup = require('./backup');
 
 module.exports = {
   greet,
@@ -14,4 +15,5 @@ module.exports = {
   linkPreview,
   fetchLinks,
   syncLinks,
+  backup,
 };
