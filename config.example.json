@@ -1,0 +1,17 @@
+{
+  "server": {
+    "port": 4000
+  },
+  "paths": {
+    "root": "C:\\myUtils",
+    "attachments": "C:\\myUtils\\notebook_attachments",
+    "attachmentBackup": "C:\\myUtils\\cache\\attachmentsBackup",
+    "notebookBackup": "C:\\myUtils\\cache\\notebookBackup",
+    "gdriveBackup": "",
+    "syncCache": "C:\\myUtils\\cache\\utility_syncLinks"
+  },
+  "firebase": {
+    "serviceAccountKey": "./secrets/serviceAccountKey.json",
+    "collection": "incoming_urls"
+  }
+}

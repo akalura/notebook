@@ -10,8 +10,8 @@
 window.NotebookAttachments = (function () {
   'use strict';
 
-  var MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
-  var ATTACHMENTS_ROOT = 'C:\\myUtils\\notebook_attachments\\';
+  var MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB default
+  var ATTACHMENTS_ROOT = 'C:\\myUtils\\notebook_attachments\\'; // default, updated from server
 
   var editorEl = null;
   var editorContainer = null;
@@ -43,6 +43,14 @@ window.NotebookAttachments = (function () {
     attachEditorEvents();
     attachPreviewBlocker();
     attachClickHandler();
+
+    // Load config from server
+    fetch('/notebook/api/config')
+      .then(function (r) { return r.json(); })
+      .then(function (cfg) {
+        if (cfg.attachmentsRoot) ATTACHMENTS_ROOT = cfg.attachmentsRoot;
+      })
+      .catch(function () { /* use defaults */ });
   }
 
   function createDropOverlay() {

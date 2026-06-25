@@ -1,8 +1,0 @@
-{
-  "targetNotebook": "Reading List",
-  "targetFolder": null,
-  "targetTab": "Incoming Links",
-  "autoCreateTab": true,
-  "pageNameFormat": "📥 Links Import — {date}",
-  "contentType": "markdown"
-}

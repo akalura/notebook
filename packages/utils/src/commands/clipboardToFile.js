@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const OUTPUT_DIR = 'C:\\myUtils\\tempFiles';
+const OUTPUT_DIR = 'C:\\myUtils\\cache\\clipboard';
 
 /**
  * Read clipboard content using PowerShell (Windows).

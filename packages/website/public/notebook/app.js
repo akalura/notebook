@@ -2849,8 +2849,6 @@
   const adminPanel = document.getElementById('admin-panel');
   const adminCloseBtn = document.getElementById('admin-close-btn');
   const exportBtn = document.getElementById('export-btn');
-  const restoreBtn = document.getElementById('restore-btn');
-  const restoreFileInput = document.getElementById('restore-file-input');
   const exportStatus = document.getElementById('export-status');
   const restoreStatus = document.getElementById('restore-status');
   const exportNotebookStatus = document.getElementById('export-notebook-status');
@@ -3054,12 +3052,6 @@
     }
   });
 
-  // ===== Restore =====
-  restoreBtn.addEventListener('click', () => {
-    if (!confirm('This will replace ALL current notes and images with the backup data.\n\nAre you sure you want to continue?')) return;
-    restoreFileInput.click();
-  });
-
   // ===== Import as Notebook =====
   const restoreNotebookBtn = document.getElementById('restore-notebook-btn');
   const restoreNotebookFileInput = document.getElementById('restore-notebook-file-input');
@@ -3158,97 +3150,6 @@
       restoreNotebookStatus.textContent = '✕ Import failed: ' + err.message;
     } finally {
       restoreNotebookBtn.disabled = false;
-    }
-  });
-
-  restoreFileInput.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    restoreFileInput.value = ''; // reset for next use
-
-    restoreBtn.disabled = true;
-    restoreStatus.className = 'admin-status info';
-    restoreStatus.textContent = 'Reading backup file...';
-
-    try {
-      const zip = await JSZip.loadAsync(file);
-
-      // Validate: state.json must exist
-      const stateFile = zip.file('state.json');
-      if (!stateFile) {
-        throw new Error('Invalid backup: state.json not found in ZIP.');
-      }
-
-      // Parse and validate state
-      restoreStatus.textContent = 'Validating backup structure...';
-      const stateText = await stateFile.async('string');
-      const parsedState = JSON.parse(stateText);
-
-      if (!parsedState.notebooks && (!parsedState.tabs || !Array.isArray(parsedState.tabs))) {
-        throw new Error('Invalid backup: state.json does not contain valid notebooks or tabs.');
-      }
-
-      // Extract images
-      restoreStatus.textContent = 'Extracting images...';
-      const imgFolder = zip.folder('images');
-      const imageFiles = [];
-      if (imgFolder) {
-        imgFolder.forEach((relativePath, zipEntry) => {
-          if (!zipEntry.dir) {
-            imageFiles.push(zipEntry);
-          }
-        });
-      }
-
-      // Clear existing images in IndexedDB
-      restoreStatus.textContent = 'Clearing existing images...';
-      await clearAllImages();
-
-      // Store new images
-      if (imageFiles.length > 0) {
-        restoreStatus.textContent = 'Restoring ' + imageFiles.length + ' image(s)...';
-        for (const imgFile of imageFiles) {
-          const blob = await imgFile.async('blob');
-          const name = imgFile.name.replace('images/', '');
-          const id = name.replace(/\.(jpg|jpeg|png|gif|webp)$/i, '');
-          const mimeType = name.endsWith('.png') ? 'image/png' : 'image/jpeg';
-          await storeImage(id, blob, mimeType);
-        }
-      }
-
-      // Write state to localStorage (final step — atomic-ish)
-      restoreStatus.textContent = 'Restoring notes data...';
-      localStorage.setItem(STORAGE_KEY, stateText);
-
-      // Reload app state with migration
-      state = JSON.parse(stateText);
-      if (!state.notebooks) {
-        // Migrate old format
-        const oldState = state;
-        state = {
-          activeNotebookId: 'notebook-1',
-          notebooks: [{ id: 'notebook-1', name: 'My Notebook', activeTabId: oldState.activeTabId, activePageId: oldState.activePageId, activeFolderId: oldState.activeFolderId || null, collapsedPages: oldState.collapsedPages || {}, activePagePerTab: oldState.activePagePerTab || {}, tabs: oldState.tabs || [] }]
-        };
-      }
-      migrateNotebooks(state.notebooks);
-      if (!state.attachments) state.attachments = [];
-      if (!state.macros) state.macros = [];
-      saveState();
-
-      const totalNbs = state.notebooks.length;
-      restoreStatus.className = 'admin-status success';
-      restoreStatus.textContent = '✓ Restore complete! ' + totalNbs + ' notebook(s) and ' + imageFiles.length + ' image(s) restored.';
-
-      // Re-render
-      render();
-      updateStorageInfo();
-
-    } catch (err) {
-      restoreStatus.className = 'admin-status error';
-      restoreStatus.textContent = '✕ Restore failed: ' + err.message;
-      console.error('Restore error:', err);
-    } finally {
-      restoreBtn.disabled = false;
     }
   });
 
@@ -3544,6 +3445,119 @@
       purgeBtn.disabled = false;
     }
   });
+
+  // ===== Attachment Backup =====
+  const exportAttachmentsBtn = document.getElementById('export-attachments-btn');
+  const exportAttachmentsStatus = document.getElementById('export-attachments-status');
+  const saveAttachmentsServerBtn = document.getElementById('save-attachments-server-btn');
+  const saveAttachmentsServerStatus = document.getElementById('save-attachments-server-status');
+  const attachmentStorageInfo = document.getElementById('attachment-storage-info');
+
+  function loadAttachmentStats() {
+    fetch('/notebook/api/attachment-stats')
+      .then(function (r) { return r.json(); })
+      .then(function (stats) {
+        var html = '<p><strong>Total Files:</strong> ' + stats.totalFiles + '</p>';
+        html += '<p><strong>Total Size:</strong> ' + formatBytes(stats.totalSize) + '</p>';
+        if (stats.folders && stats.folders.length > 0) {
+          html += '<p style="margin-top:8px"><strong>By Notebook:</strong></p>';
+          html += '<ul style="list-style:none;padding-left:0;margin:4px 0">';
+          stats.folders.forEach(function (f) {
+            html += '<li style="padding:3px 0;font-size:13px;color:var(--text-secondary)">📁 ' + escapeHtml(f.name) + ' — ' + f.files + ' file(s), ' + formatBytes(f.size) + '</li>';
+          });
+          html += '</ul>';
+        }
+        if (stats.totalFiles === 0) {
+          html = '<p style="color:var(--text-muted)">No attachments found.</p>';
+        }
+        attachmentStorageInfo.innerHTML = html;
+      })
+      .catch(function () {
+        attachmentStorageInfo.innerHTML = '<p style="color:var(--text-muted)">Could not load attachment stats.</p>';
+      });
+  }
+
+  // Export attachments (download)
+  exportAttachmentsBtn.addEventListener('click', async () => {
+    exportAttachmentsBtn.disabled = true;
+    exportAttachmentsStatus.className = 'admin-status info';
+    exportAttachmentsStatus.textContent = 'Creating attachment backup... This may take a while for large folders.';
+
+    try {
+      const response = await fetch('/notebook/api/backup-attachments', { method: 'POST' });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Backup failed');
+      }
+
+      // Download the created file
+      exportAttachmentsStatus.textContent = 'Downloading...';
+      const downloadResponse = await fetch('/notebook/api/backup-attachments/' + result.filename);
+      const blob = await downloadResponse.blob();
+      downloadBlob(blob, result.filename);
+
+      exportAttachmentsStatus.className = 'admin-status success';
+      exportAttachmentsStatus.textContent = '✓ Attachment backup downloaded: ' + result.filename + ' (' + formatBytes(result.size) + ')';
+    } catch (err) {
+      exportAttachmentsStatus.className = 'admin-status error';
+      exportAttachmentsStatus.textContent = '✕ ' + err.message;
+    } finally {
+      exportAttachmentsBtn.disabled = false;
+    }
+  });
+
+  // Save attachments to server backup folder
+  saveAttachmentsServerBtn.addEventListener('click', async () => {
+    saveAttachmentsServerBtn.disabled = true;
+    saveAttachmentsServerStatus.className = 'admin-status info';
+    saveAttachmentsServerStatus.textContent = 'Creating attachment backup on server...';
+
+    try {
+      const response = await fetch('/notebook/api/backup-attachments', { method: 'POST' });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Backup failed');
+      }
+
+      saveAttachmentsServerStatus.className = 'admin-status success';
+      saveAttachmentsServerStatus.textContent = '✓ Saved to server: ' + result.filename + ' (' + formatBytes(result.size) + ')';
+    } catch (err) {
+      saveAttachmentsServerStatus.className = 'admin-status error';
+      saveAttachmentsServerStatus.textContent = '✕ ' + err.message;
+    } finally {
+      saveAttachmentsServerBtn.disabled = false;
+    }
+  });
+
+  // Save attachments to Google Drive
+  const saveAttachmentsGdriveBtn = document.getElementById('save-attachments-gdrive-btn');
+  saveAttachmentsGdriveBtn.addEventListener('click', async () => {
+    saveAttachmentsGdriveBtn.disabled = true;
+    saveAttachmentsServerStatus.className = 'admin-status info';
+    saveAttachmentsServerStatus.textContent = 'Creating attachment backup on Google Drive...';
+
+    try {
+      const response = await fetch('/notebook/api/backup-attachments-gdrive', { method: 'POST' });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Backup failed');
+      }
+
+      saveAttachmentsServerStatus.className = 'admin-status success';
+      saveAttachmentsServerStatus.textContent = '✓ Saved to Google Drive: ' + result.filename + ' (' + formatBytes(result.size) + ')';
+    } catch (err) {
+      saveAttachmentsServerStatus.className = 'admin-status error';
+      saveAttachmentsServerStatus.textContent = '✕ ' + err.message;
+    } finally {
+      saveAttachmentsGdriveBtn.disabled = false;
+    }
+  });
+
+  // Load attachment stats when admin opens
+  adminBtn.addEventListener('click', () => { loadAttachmentStats(); });
 
   // ===== Global Labels =====
   if (!state.globalLabels) state.globalLabels = [];

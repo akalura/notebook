@@ -101,15 +101,16 @@
           <button class="admin-tab-top active" data-admin-tab="admin-backup">Backup</button>
           <button class="admin-tab-top" data-admin-tab="admin-global-labels">Global Labels</button>
           <button class="admin-tab-top" data-admin-tab="admin-labels">Label Macro</button>
-          <button class="admin-tab-top" data-admin-tab="admin-link-sync">Link Sync</button>
+          <button class="admin-tab-top" data-admin-tab="admin-link-sync">Firebase Link Sync</button>
         </div>
 
         <!-- ===== Backup Tab ===== -->
         <div id="admin-backup" class="admin-tab-top-content">
           <!-- Backup Sub-Tabs -->
           <div class="admin-tabs">
-            <button class="admin-tab active" data-tab="full-backup">Full Backup</button>
-            <button class="admin-tab" data-tab="notebook-backup">Notebook Backup</button>
+            <button class="admin-tab active" data-tab="full-backup">All Notebook Backup</button>
+            <button class="admin-tab" data-tab="notebook-backup">Individual Notebook Backup</button>
+            <button class="admin-tab" data-tab="attachment-backup">Attachment Backup</button>
           </div>
 
           <!-- Full Backup Tab Content -->
@@ -117,16 +118,9 @@
             <section class="admin-section">
               <h3>Export All</h3>
               <p>Download a complete backup of all notebooks, pages, and images.</p>
+              <div class="admin-warning">⚠ File attachments are not included in this backup. Use the CLI <code>backup --attachments</code> command to back up attachments separately.</div>
               <button id="export-btn" class="admin-action-btn">📦 Export All</button>
               <div id="export-status" class="admin-status"></div>
-            </section>
-            <section class="admin-section">
-              <h3>Restore All</h3>
-              <p>Replace all current data with a previously exported full backup.</p>
-              <div class="admin-warning">⚠ This will overwrite ALL existing notebooks, pages, and images.</div>
-              <button id="restore-btn" class="admin-action-btn">📥 Restore All (Replace)</button>
-              <input type="file" id="restore-file-input" accept=".zip" class="hidden">
-              <div id="restore-status" class="admin-status"></div>
             </section>
             <section class="admin-section">
               <h3>Storage Info</h3>
@@ -139,9 +133,10 @@
               <button id="save-gdrive-btn" class="admin-action-btn" style="margin-left:8px">☁️ Save to Google Drive</button>
               <div id="save-server-status" class="admin-status"></div>
             </section>
-            <section class="admin-section">
+            <section class="admin-section admin-section-full">
               <h3>Server Backups</h3>
               <p>Previously saved backups on the server. You can download, restore, or delete them.</p>
+              <div id="restore-status" class="admin-status"></div>
               <div id="server-backups"></div>
             </section>
             <section class="admin-section admin-section-danger">
@@ -176,6 +171,31 @@
               <div id="notebook-storage-info" class="storage-info"></div>
             </section>
           </div>
+
+          <!-- Attachment Backup Tab Content -->
+          <div id="tab-attachment-backup" class="admin-tab-content hidden">
+            <section class="admin-section">
+              <h3>Export Attachments</h3>
+              <p>Download a backup of all file attachments stored on the server.</p>
+              <button id="export-attachments-btn" class="admin-action-btn">📦 Export Attachments</button>
+              <div id="export-attachments-status" class="admin-status"></div>
+            </section>
+            <section class="admin-section">
+              <h3>Save Attachments to Server</h3>
+              <p>Save an attachment backup ZIP to the server's backup folder.</p>
+              <div class="admin-row" style="gap:8px;flex-wrap:wrap">
+                <button id="save-attachments-server-btn" class="admin-action-btn">💾 Save to Server</button>
+                <button id="save-attachments-gdrive-btn" class="admin-action-btn">☁️ Save to Google Drive</button>
+              </div>
+              <div id="save-attachments-server-status" class="admin-status"></div>
+            </section>
+            <section class="admin-section">
+              <h3>Attachment Storage Info</h3>
+              <div id="attachment-storage-info" class="storage-info">
+                <p style="color:var(--text-muted)">Loading...</p>
+              </div>
+            </section>
+          </div>
         </div>
 
         <!-- ===== Global Labels Tab ===== -->
@@ -198,7 +218,7 @@
             <p>Assign plugins to labels. When a page has a label with a macro, the plugin can be executed on that page's content.</p>
             <button id="create-macro-btn" class="admin-action-btn">+ Create New Macro</button>
           </section>
-          <section class="admin-section">
+          <section class="admin-section admin-section-full">
             <h3>Existing Macros</h3>
             <div id="macro-list"></div>
           </section>
@@ -221,7 +241,7 @@
               <p style="color:var(--text-muted)">No sync has been run yet.</p>
             </div>
           </section>
-          <section class="admin-section">
+          <section class="admin-section admin-section-full">
             <h3>Sync Output</h3>
             <pre id="sync-output" style="background:var(--bg-deep);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;color:var(--text-secondary)">No output yet.</pre>
           </section>

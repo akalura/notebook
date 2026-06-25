@@ -1,15 +1,17 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const config = require('../../../shared/loadConfig');
 
-const MYUTILS_ROOT = 'C:\\myUtils';
-const BACKUP_DIR = path.join(MYUTILS_ROOT, 'backup');
-const ATTACHMENTS_DIR = path.join(MYUTILS_ROOT, 'notebook_attachments');
+const MYUTILS_ROOT = config.paths.root;
+const BACKUP_DIR = config.paths.attachmentBackup;
+const ATTACHMENTS_DIR = config.paths.attachments;
 
 // Folders to exclude from full backup (relative to MYUTILS_ROOT)
 const EXCLUDE_RELATIVE = [
   'tempFiles',
   'backup',
+  'cache',
   'nodejs\\node_modules',
   'nodejs\\.vscode'
 ];

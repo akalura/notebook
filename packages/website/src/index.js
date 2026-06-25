@@ -2,20 +2,24 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const config = require('../../shared/loadConfig');
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || config.server.port;
 
-// Backup folder (use BACKUP_DIR env var or default)
-const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, '../backup');
-const GDRIVE_BACKUP_DIR = 'G:\\My Drive\\notebook-backup';
-const ATTACHMENTS_DIR = 'C:\\myUtils\\notebook_attachments';
+// Directories from config
+const BACKUP_DIR = config.paths.notebookBackup;
+const GDRIVE_BACKUP_DIR = config.paths.gdriveBackup;
+const ATTACHMENTS_DIR = config.paths.attachments;
 
 if (!fs.existsSync(BACKUP_DIR)) {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
 }
-if (!fs.existsSync(GDRIVE_BACKUP_DIR)) {
-  fs.mkdirSync(GDRIVE_BACKUP_DIR, { recursive: true });
+if (config.paths.attachmentBackup && !fs.existsSync(config.paths.attachmentBackup)) {
+  fs.mkdirSync(config.paths.attachmentBackup, { recursive: true });
+}
+if (GDRIVE_BACKUP_DIR) {
+  try { if (!fs.existsSync(GDRIVE_BACKUP_DIR)) fs.mkdirSync(GDRIVE_BACKUP_DIR, { recursive: true }); } catch (e) { /* may not be available */ }
 }
 if (!fs.existsSync(ATTACHMENTS_DIR)) {
   fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true });
@@ -250,7 +254,11 @@ app.use(function (err, req, res, next) {
 });
 
 // ===== Staged Links API =====
-const STAGED_LINKS_FILE = path.join(__dirname, '../staged-links.json');
+const SYNC_CACHE_DIR = config.paths.syncCache;
+if (!fs.existsSync(SYNC_CACHE_DIR)) {
+  fs.mkdirSync(SYNC_CACHE_DIR, { recursive: true });
+}
+const STAGED_LINKS_FILE = path.join(SYNC_CACHE_DIR, 'staged-links.json');
 
 // Parse JSON bodies
 app.use(express.json({ limit: '10mb' }));
@@ -299,7 +307,7 @@ app.delete('/notebook/api/staged-links/:id', (req, res) => {
 
 // ===== Link Sync API =====
 const { execFile } = require('child_process');
-const SYNC_STATUS_FILE = path.join(__dirname, '../sync-status.json');
+const SYNC_STATUS_FILE = path.join(SYNC_CACHE_DIR, 'sync-status.json');
 
 function readSyncStatus() {
   try {
@@ -335,8 +343,8 @@ app.post('/notebook/api/sync-trigger', (req, res) => {
 
   res.json({ success: true, message: 'Sync started' });
 
-  // Run syncLinks as child process
-  var args = [path.resolve(__dirname, '../../utils/src/index.js'), 'syncLinks'];
+  // Run firebaseLinkSync as child process
+  var args = [path.resolve(__dirname, '../../utils/src/index.js'), 'firebaseLinkSync'];
   if (skipPreview) args.push('--no-preview');
 
   var child = execFile('node', args, { timeout: 300000, cwd: path.resolve(__dirname, '../../utils') }, function (err, stdout, stderr) {
@@ -349,6 +357,145 @@ app.post('/notebook/api/sync-trigger', (req, res) => {
       result.lastResult = { success: true, output: stdout || '' };
     }
     writeSyncStatus(result);
+  });
+});
+
+// ===== Attachment Backup API =====
+
+// Get attachment folder stats
+app.get('/notebook/api/attachment-stats', (req, res) => {
+  try {
+    if (!fs.existsSync(ATTACHMENTS_DIR)) {
+      return res.json({ totalFiles: 0, totalSize: 0, folders: [] });
+    }
+    var stats = getDirectoryStats(ATTACHMENTS_DIR);
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Trigger attachment backup (server-side zip creation)
+app.post('/notebook/api/backup-attachments', (req, res) => {
+  try {
+    if (!fs.existsSync(ATTACHMENTS_DIR)) {
+      return res.status(400).json({ error: 'Attachments folder does not exist' });
+    }
+    var date = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    var zipName = 'attachments-backup-' + date + '.zip';
+    var zipPath = path.join(config.paths.attachmentBackup, zipName);
+
+    // Use PowerShell Compress-Archive
+    var { execSync } = require('child_process');
+    var psCmd = "Compress-Archive -Path '" + ATTACHMENTS_DIR + "\\*' -DestinationPath '" + zipPath + "' -Force";
+    execSync('powershell -NoProfile -Command "' + psCmd + '"', { stdio: 'pipe', timeout: 300000 });
+
+    if (!fs.existsSync(zipPath)) {
+      return res.status(500).json({ error: 'ZIP file was not created' });
+    }
+
+    var stat = fs.statSync(zipPath);
+    res.json({ success: true, filename: zipName, size: stat.size, path: zipPath });
+  } catch (err) {
+    res.status(500).json({ error: 'Backup failed: ' + err.message });
+  }
+});
+
+// Save attachment backup to Google Drive
+app.post('/notebook/api/backup-attachments-gdrive', (req, res) => {
+  try {
+    if (!GDRIVE_BACKUP_DIR) {
+      return res.status(400).json({ error: 'Google Drive backup path not configured' });
+    }
+    if (!fs.existsSync(ATTACHMENTS_DIR)) {
+      return res.status(400).json({ error: 'Attachments folder does not exist' });
+    }
+    var date = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    var zipName = 'attachments-backup-' + date + '.zip';
+    var zipPath = path.join(GDRIVE_BACKUP_DIR, zipName);
+
+    var { execSync } = require('child_process');
+    var psCmd = "Compress-Archive -Path '" + ATTACHMENTS_DIR + "\\*' -DestinationPath '" + zipPath + "' -Force";
+    execSync('powershell -NoProfile -Command "' + psCmd + '"', { stdio: 'pipe', timeout: 300000 });
+
+    if (!fs.existsSync(zipPath)) {
+      return res.status(500).json({ error: 'ZIP file was not created' });
+    }
+
+    var stat = fs.statSync(zipPath);
+    res.json({ success: true, filename: zipName, size: stat.size, path: GDRIVE_BACKUP_DIR });
+  } catch (err) {
+    res.status(500).json({ error: 'Backup failed: ' + err.message });
+  }
+});
+
+// Download attachment backup
+app.get('/notebook/api/backup-attachments/:filename', (req, res) => {
+  var filename = req.params.filename;
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+  var filePath = path.join(config.paths.attachmentBackup, filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Backup not found' });
+  }
+  res.download(filePath);
+});
+
+function getDirectoryStats(dirPath) {
+  var totalFiles = 0;
+  var totalSize = 0;
+  var folders = [];
+
+  function walkDir(dir, depth) {
+    if (!fs.existsSync(dir)) return;
+    var entries = fs.readdirSync(dir, { withFileTypes: true });
+    var folderFileCount = 0;
+    var folderSize = 0;
+
+    entries.forEach(function (entry) {
+      var fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory() && entry.name !== '.tmp') {
+        if (depth === 0) {
+          var subStats = { name: entry.name, files: 0, size: 0 };
+          walkSubDir(fullPath, subStats);
+          folders.push(subStats);
+          totalFiles += subStats.files;
+          totalSize += subStats.size;
+        } else {
+          walkDir(fullPath, depth + 1);
+        }
+      } else if (entry.isFile()) {
+        var stat = fs.statSync(fullPath);
+        totalFiles++;
+        totalSize += stat.size;
+      }
+    });
+  }
+
+  function walkSubDir(dir, stats) {
+    if (!fs.existsSync(dir)) return;
+    var entries = fs.readdirSync(dir, { withFileTypes: true });
+    entries.forEach(function (entry) {
+      var fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walkSubDir(fullPath, stats);
+      } else if (entry.isFile()) {
+        var stat = fs.statSync(fullPath);
+        stats.files++;
+        stats.size += stat.size;
+      }
+    });
+  }
+
+  walkDir(dirPath, 0);
+  return { totalFiles: totalFiles, totalSize: totalSize, folders: folders };
+}
+
+// ===== Client Config API =====
+app.get('/notebook/api/config', (req, res) => {
+  res.json({
+    attachmentsRoot: ATTACHMENTS_DIR + '\\'
   });
 });
 
