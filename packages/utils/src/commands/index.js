@@ -3,6 +3,7 @@ const clipboardConvertNewLineToCarriageReturn = require('./clipboardConvertNewLi
 const linkPreview = require('./linkPreview');
 const firebaseLinkSync = require('./firebaseLinkSync');
 const backup = require('./backup');
+const folderStats = require('./folderStats');
 
 module.exports = {
   clipboardToFile,
@@ -10,4 +11,5 @@ module.exports = {
   linkPreview,
   firebaseLinkSync,
   backup,
+  folderStats,
 };
