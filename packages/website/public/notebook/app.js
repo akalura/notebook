@@ -2721,9 +2721,22 @@
       }
     }
 
+    // Check for rich HTML content (only for markdown pages)
+    const activePage = getActivePage();
+    if (activePage && activePage.contentType === 'markdown' && e.clipboardData) {
+      const html = e.clipboardData.getData('text/html');
+      const plainText = e.clipboardData.getData('text/plain');
+
+      if (html && hasRichContent(html)) {
+        e.preventDefault();
+        // Store paste context for the prompt
+        showRichPastePrompt(html, plainText);
+        return;
+      }
+    }
+
     // Fallback: auto-detect content type for text paste
     setTimeout(() => {
-      const activePage = getActivePage();
       if (!activePage) return;
       const detected = detectContentType(editorEl.value);
       if (detected && detected !== activePage.contentType) {
@@ -2733,6 +2746,84 @@
       }
     }, 50);
   });
+
+  // Check if HTML contains meaningful rich formatting
+  function hasRichContent(html) {
+    var richTags = /<(a|b|strong|i|em|h[1-6]|ul|ol|li|blockquote|pre|code|table)\b/i;
+    return richTags.test(html);
+  }
+
+  // Show inline prompt for rich paste options
+  function showRichPastePrompt(html, plainText) {
+    // Remove any existing prompt
+    var existing = document.querySelector('.rich-paste-prompt');
+    if (existing) existing.remove();
+
+    var prompt = document.createElement('div');
+    prompt.className = 'rich-paste-prompt';
+    prompt.innerHTML =
+      '<span class="rich-paste-label">Rich content detected:</span>' +
+      '<button class="rich-paste-btn rich-paste-md">📝 As Markdown</button>' +
+      '<button class="rich-paste-btn rich-paste-plain">📄 As Plain Text</button>';
+
+    // Position within the content panel
+    var contentPanel = document.getElementById('content-panel');
+    contentPanel.appendChild(prompt);
+
+    var timeout = setTimeout(function () {
+      prompt.remove();
+      // Default: paste as plain text
+      insertAtCursor(plainText);
+    }, 8000);
+
+    prompt.querySelector('.rich-paste-md').addEventListener('click', function () {
+      clearTimeout(timeout);
+      prompt.remove();
+      var markdown = convertHtmlToMarkdown(html);
+      insertAtCursor(markdown);
+    });
+
+    prompt.querySelector('.rich-paste-plain').addEventListener('click', function () {
+      clearTimeout(timeout);
+      prompt.remove();
+      insertAtCursor(plainText);
+    });
+  }
+
+  function convertHtmlToMarkdown(html) {
+    if (!window.TurndownService) {
+      // Fallback if Turndown not loaded
+      var temp = document.createElement('div');
+      temp.innerHTML = html;
+      return temp.textContent || temp.innerText || '';
+    }
+    var turndown = new TurndownService({
+      headingStyle: 'atx',
+      codeBlockStyle: 'fenced',
+      bulletListMarker: '-'
+    });
+    // Clean up the HTML — remove style tags, scripts, etc.
+    var cleaned = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+    cleaned = cleaned.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+    return turndown.turndown(cleaned);
+  }
+
+  function insertAtCursor(text) {
+    var start = editorEl.selectionStart;
+    var end = editorEl.selectionEnd;
+    var value = editorEl.value;
+    editorEl.value = value.substring(0, start) + text + value.substring(end);
+    editorEl.selectionStart = editorEl.selectionEnd = start + text.length;
+    editorEl.focus();
+
+    // Save content
+    var activePage = getActivePage();
+    if (activePage) {
+      activePage.content = editorEl.value;
+      activePage.updatedAt = new Date().toISOString();
+      debouncedSave();
+    }
+  }
 
   function handleImagePaste(blob) {
     const activePage = getActivePage();
@@ -4121,6 +4212,17 @@
 
   document.getElementById('search-btn').addEventListener('click', function () {
     window.NotebookSearch.show();
+  });
+
+  // Initialize quick notes
+  if (!state.quickNotes) state.quickNotes = [];
+  window.QuickNotes.init(
+    function () { return state; },
+    function () { debouncedSave(); }
+  );
+
+  document.getElementById('quick-notes-btn').addEventListener('click', function () {
+    window.QuickNotes.toggle();
   });
 
   // Initialize structure view
