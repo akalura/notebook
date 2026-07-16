@@ -1444,13 +1444,6 @@ html, body {
   flex: 1;
 }
 
-.move-modal-folder {
-  padding: 6px 12px;
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
 .move-modal-folder-name {
   display: flex;
   align-items: center;
@@ -1458,12 +1451,14 @@ html, body {
 }
 
 .move-modal-item {
-  padding: 10px 12px;
+  padding: 8px 12px;
   font-size: 13px;
   color: var(--text-primary);
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.1s;
+  display: flex;
+  align-items: center;
 }
 
 .move-modal-item:hover {
@@ -1474,6 +1469,21 @@ html, body {
   color: var(--text-muted);
   cursor: default;
   font-style: italic;
+}
+
+.move-modal-item.disabled:hover {
+  background: none;
+}
+
+.move-modal-folder {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
 }
 
 .move-modal-item.disabled:hover {
@@ -2612,4 +2622,105 @@ a[href^="nb://"]:hover {
   font-size: 0.8em;
   color: var(--text-muted);
   font-weight: 400;
+}
+
+/* ===== Move Modal Controls ===== */
+.move-modal-controls {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.move-modal-search {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.move-modal-search:focus {
+  border-color: var(--accent);
+}
+
+.move-modal-control-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.move-modal-control-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  min-width: 38px;
+}
+
+.move-modal-pill {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.move-modal-pill:hover {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.move-modal-pill.active {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+.move-modal-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.move-tree-connector {
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: pre;
+  flex-shrink: 0;
+}
+
+.move-folder-chevron {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-right: 4px;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.move-folder-children {
+  overflow: hidden;
+}
+
+.move-folder-children.collapsed {
+  display: none;
+}
+
+.move-modal-folder {
+  cursor: pointer;
+  opacity: 1;
+}
+
+.move-modal-folder:hover {
+  background: var(--bg-overlay);
+  border-radius: 6px;
 }

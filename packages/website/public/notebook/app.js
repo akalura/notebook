@@ -1406,12 +1406,16 @@
     const nb = getActiveNotebook();
     if (!nb) return;
 
+    var modalState = { search: '', viewMode: 'all' };
+
     // Create modal overlay
     const overlay = document.createElement('div');
     overlay.className = 'move-modal-overlay';
 
     const modal = document.createElement('div');
     modal.className = 'move-modal';
+    modal.style.maxHeight = '550px';
+    modal.style.width = '380px';
 
     const header = document.createElement('div');
     header.className = 'move-modal-header';
@@ -1423,46 +1427,207 @@
     header.appendChild(closeBtn);
     modal.appendChild(header);
 
+    // Controls section
+    const controls = document.createElement('div');
+    controls.className = 'move-modal-controls';
+
+    // Search input
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Filter folders/tabs...';
+    searchInput.className = 'move-modal-search';
+    controls.appendChild(searchInput);
+
+    // View mode + collapse toggle row
+    const viewRow = document.createElement('div');
+    viewRow.className = 'move-modal-control-row';
+    viewRow.innerHTML = '<span class="move-modal-control-label">View:</span>';
+    var viewAllBtn = document.createElement('button');
+    viewAllBtn.className = 'move-modal-pill active';
+    viewAllBtn.textContent = 'All';
+    var viewChildBtn = document.createElement('button');
+    viewChildBtn.className = 'move-modal-pill';
+    viewChildBtn.textContent = 'Current Area';
+    var collapseToggleBtn = document.createElement('button');
+    collapseToggleBtn.className = 'move-modal-pill';
+    collapseToggleBtn.textContent = '▶ Collapse All';
+    collapseToggleBtn.style.marginLeft = 'auto';
+    viewRow.appendChild(viewAllBtn);
+    viewRow.appendChild(viewChildBtn);
+    viewRow.appendChild(collapseToggleBtn);
+    controls.appendChild(viewRow);
+
+    modal.appendChild(controls);
+
+    // List
     const list = document.createElement('div');
     list.className = 'move-modal-list';
+    modal.appendChild(list);
 
-    // Build tree: top-level tabs, then folders with their tabs
-    const topLevelTabs = nb.tabs.filter(g => !g.isFolder && !g.parentTabId);
-    const topLevelFolders = nb.tabs.filter(g => g.isFolder && !g.parentTabId);
+    var allExpanded = true;
 
-    // Render top-level tabs
-    topLevelTabs.forEach(g => {
-      const item = createMoveItem(g, false, sourceTab, page, overlay);
-      list.appendChild(item);
+    // Event handlers
+    searchInput.addEventListener('input', function () {
+      modalState.search = searchInput.value.toLowerCase().trim();
+      renderMoveList();
     });
 
-    // Render folders with their child tabs
-    topLevelFolders.forEach(folder => {
-      const folderEl = document.createElement('div');
-      folderEl.className = 'move-modal-folder';
-      folderEl.innerHTML = '<span class="move-modal-folder-name">📁 ' + escapeHtml(folder.name) + '</span>';
-      list.appendChild(folderEl);
+    viewAllBtn.addEventListener('click', function () {
+      modalState.viewMode = 'all';
+      viewAllBtn.classList.add('active');
+      viewChildBtn.classList.remove('active');
+      renderMoveList();
+    });
 
-      const childTabs = nb.tabs.filter(g => !g.isFolder && g.parentTabId === folder.id);
-      childTabs.forEach(g => {
-        const item = createMoveItem(g, true, sourceTab, page, overlay);
-        list.appendChild(item);
+    viewChildBtn.addEventListener('click', function () {
+      modalState.viewMode = 'children';
+      viewChildBtn.classList.add('active');
+      viewAllBtn.classList.remove('active');
+      renderMoveList();
+    });
+
+    collapseToggleBtn.addEventListener('click', function () {
+      allExpanded = !allExpanded;
+      var wrappers = list.querySelectorAll('.move-folder-children');
+      var chevrons = list.querySelectorAll('.move-folder-chevron');
+      wrappers.forEach(function (w) {
+        if (allExpanded) w.classList.remove('collapsed');
+        else w.classList.add('collapsed');
+      });
+      chevrons.forEach(function (c) {
+        c.innerHTML = allExpanded ? '▼' : '▶';
+      });
+      collapseToggleBtn.textContent = allExpanded ? '▶ Collapse All' : '▼ Expand All';
+    });
+
+    function renderMoveList() {
+      list.innerHTML = '';
+
+      var rootParentId = null;
+      if (modalState.viewMode === 'children') {
+        // Show only items under the current folder (sourceTab's parent)
+        rootParentId = sourceTab.parentTabId || null;
+      }
+
+      renderMoveLevel(nb, rootParentId, list, 0);
+
+      if (list.children.length === 0) {
+        list.innerHTML = '<div class="move-modal-empty">No matching locations found.</div>';
+      }
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function renderMoveLevel(notebook, parentId, container, currentDepth) {
+      var folders = notebook.tabs.filter(function (g) { return g.isFolder && g.parentTabId === parentId; });
+      var tabs = notebook.tabs.filter(function (g) { return !g.isFolder && g.parentTabId === parentId; });
+
+      // Filter by search
+      if (modalState.search) {
+        tabs = tabs.filter(function (g) { return g.name.toLowerCase().indexOf(modalState.search) !== -1; });
+        folders = folders.filter(function (f) { return folderMatchesSearch(notebook, f, modalState.search); });
+      }
+
+      var totalItems = tabs.length + folders.length;
+      var itemIndex = 0;
+
+      // Render tabs at this level
+      tabs.forEach(function (g) {
+        itemIndex++;
+        var isLast = (itemIndex === totalItems);
+        var item = document.createElement('div');
+        item.className = 'move-modal-item';
+        item.style.paddingLeft = (12 + currentDepth * 16) + 'px';
+
+        // Tree connector
+        var connector = document.createElement('span');
+        connector.className = 'move-tree-connector';
+        connector.textContent = isLast ? '└─ ' : '├─ ';
+        item.appendChild(connector);
+
+        var nameSpan = document.createElement('span');
+        if (g.id === sourceTab.id) {
+          item.classList.add('disabled');
+          nameSpan.textContent = g.name + ' (current)';
+        } else {
+          nameSpan.textContent = g.name;
+          item.addEventListener('click', function () {
+            movePageToTab(page.id, g.id);
+            overlay.remove();
+          });
+        }
+        item.appendChild(nameSpan);
+        container.appendChild(item);
       });
 
-      // Recursively handle nested folders
-      renderNestedFolders(nb, folder.id, list, sourceTab, page, overlay, 1);
-    });
+      // Render folders then recurse
+      folders.forEach(function (folder, fi) {
+        itemIndex++;
+        var isLast = (itemIndex === totalItems);
 
-    modal.appendChild(list);
+        var folderEl = document.createElement('div');
+        folderEl.className = 'move-modal-folder';
+        folderEl.style.paddingLeft = (12 + currentDepth * 16) + 'px';
+
+        var connector = document.createElement('span');
+        connector.className = 'move-tree-connector';
+        connector.textContent = isLast ? '└─ ' : '├─ ';
+        folderEl.appendChild(connector);
+
+        var chevron = document.createElement('span');
+        chevron.className = 'move-folder-chevron';
+        chevron.innerHTML = '▼';
+        folderEl.appendChild(chevron);
+
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'move-modal-folder-name';
+        nameSpan.innerHTML = '<i data-lucide="folder" class="icon-xs"></i> ' + escapeHtml(folder.name);
+        folderEl.appendChild(nameSpan);
+
+        container.appendChild(folderEl);
+
+        // Children wrapper (collapsible)
+        var childrenWrapper = document.createElement('div');
+        childrenWrapper.className = 'move-folder-children';
+        container.appendChild(childrenWrapper);
+
+        // Toggle collapse on folder click
+        folderEl.addEventListener('click', function () {
+          var isCollapsed = childrenWrapper.classList.toggle('collapsed');
+          chevron.innerHTML = isCollapsed ? '▶' : '▼';
+        });
+
+        // Recurse into this folder's children wrapper
+        renderMoveLevel(notebook, folder.id, childrenWrapper, currentDepth + 1);
+      });
+    }
+
+    function folderMatchesSearch(notebook, folder, term) {
+      if (folder.name.toLowerCase().indexOf(term) !== -1) return true;
+      var children = notebook.tabs.filter(function (g) { return g.parentTabId === folder.id; });
+      return children.some(function (child) {
+        if (child.name.toLowerCase().indexOf(term) !== -1) return true;
+        if (child.isFolder) return folderMatchesSearch(notebook, child, term);
+        return false;
+      });
+    }
+
+    // Initial render
+    renderMoveList();
+
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) overlay.remove();
     });
+
+    setTimeout(function () { searchInput.focus(); }, 50);
+    if (window.lucide) setTimeout(function () { lucide.createIcons(); }, 60);
   }
 
   function renderNestedFolders(nb, parentFolderId, list, sourceTab, page, overlay, depth) {
+    // Legacy — kept for compatibility but no longer used by showMoveToModal
     const subFolders = nb.tabs.filter(g => g.isFolder && g.parentTabId === parentFolderId);
     subFolders.forEach(folder => {
       const folderEl = document.createElement('div');
