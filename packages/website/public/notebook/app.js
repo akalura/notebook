@@ -133,6 +133,12 @@
   // Ensure attachments array exists
   if (!state.attachments) state.attachments = [];
 
+  // Ensure move-target tracking arrays exist on every notebook
+  state.notebooks.forEach(nb => {
+    if (!Array.isArray(nb.moveTargets)) nb.moveTargets = [];
+    if (!Array.isArray(nb.recentMoveTargets)) nb.recentMoveTargets = [];
+  });
+
   // Helper to get active notebook
   function getActiveNotebook() {
     return state.notebooks.find(nb => nb.id === state.activeNotebookId) || state.notebooks[0] || null;
@@ -655,6 +661,123 @@
     });
   }
 
+  // ===== Move Tab / Folder to Another Folder =====
+
+  // Returns true if candidateId is folderId itself or nested anywhere under folderId.
+  // Used to prevent moving a folder into itself or one of its own descendants (cycle).
+  function isDescendantFolder(nb, candidateId, folderId) {
+    if (candidateId === null) return false;
+    if (candidateId === folderId) return true;
+    let currentId = candidateId;
+    while (currentId) {
+      if (currentId === folderId) return true;
+      const parent = nb.tabs.find(t => t.id === currentId);
+      currentId = parent ? parent.parentTabId : null;
+    }
+    return false;
+  }
+
+  // Reparents a tab or folder (and, by reference, its entire subtree and all
+  // contained pages/images/attachments) under targetFolderId. Pass null to move
+  // to the notebook root. Returns true on success.
+  function moveTabToFolder(tabId, targetFolderId) {
+    const nb = getActiveNotebook();
+    if (!nb) return false;
+
+    const tab = nb.tabs.find(t => t.id === tabId);
+    if (!tab) return false;
+
+    // No-op: already in the requested location
+    if (tab.parentTabId === targetFolderId) return false;
+
+    // Can't drop a tab onto itself
+    if (tabId === targetFolderId) return false;
+
+    // Target must be an existing folder, or null for root
+    if (targetFolderId !== null) {
+      const target = nb.tabs.find(t => t.id === targetFolderId);
+      if (!target || !target.isFolder) return false;
+    }
+
+    // Cycle guard: a folder cannot move into itself or any of its descendants
+    if (tab.isFolder && isDescendantFolder(nb, targetFolderId, tabId)) {
+      alert('Cannot move the folder "' + tab.name + '" into itself or one of its own subfolders.');
+      return false;
+    }
+
+    // Enforce unique folder names at the destination level
+    if (tab.isFolder) {
+      const siblings = nb.tabs.filter(g =>
+        g.isFolder && g.parentTabId === targetFolderId && g.id !== tab.id);
+      if (siblings.some(g => g.name === tab.name)) {
+        alert('A folder named "' + tab.name + '" already exists at the destination. Please rename it first.');
+        return false;
+      }
+    }
+
+    // Reparent. Because children reference their parent by id, the whole subtree
+    // (child folders, tabs, and every page/image/attachment inside them) moves with it.
+    tab.parentTabId = targetFolderId;
+
+    // If the moved tab was active, follow it to the destination so it stays visible
+    if (nb.activeTabId === tab.id) {
+      nb.activeFolderId = targetFolderId;
+    }
+
+    // Remember this destination as a recent target (root is not tracked)
+    if (targetFolderId !== null) {
+      recordRecentMoveTarget(nb, targetFolderId);
+    }
+
+    debouncedSave();
+    render();
+    return true;
+  }
+
+  // ===== Pinned & Recent Move Targets =====
+
+  const MAX_RECENT_MOVE_TARGETS = 5;
+
+  // Ensure the tracking arrays exist on a notebook.
+  function ensureMoveTargetArrays(nb) {
+    if (!Array.isArray(nb.moveTargets)) nb.moveTargets = [];
+    if (!Array.isArray(nb.recentMoveTargets)) nb.recentMoveTargets = [];
+  }
+
+  // Drop ids that no longer point at an existing folder (deleted/renamed away).
+  function pruneMoveTargets(nb) {
+    ensureMoveTargetArrays(nb);
+    const isFolderId = (id) => nb.tabs.some(t => t.id === id && t.isFolder);
+    nb.moveTargets = nb.moveTargets.filter(isFolderId);
+    nb.recentMoveTargets = nb.recentMoveTargets.filter(isFolderId);
+  }
+
+  function isPinnedMoveTarget(nb, folderId) {
+    ensureMoveTargetArrays(nb);
+    return nb.moveTargets.indexOf(folderId) !== -1;
+  }
+
+  function togglePinnedMoveTarget(nb, folderId) {
+    ensureMoveTargetArrays(nb);
+    const idx = nb.moveTargets.indexOf(folderId);
+    if (idx === -1) {
+      nb.moveTargets.unshift(folderId); // most-recently-pinned first
+    } else {
+      nb.moveTargets.splice(idx, 1);
+    }
+    debouncedSave();
+  }
+
+  function recordRecentMoveTarget(nb, folderId) {
+    ensureMoveTargetArrays(nb);
+    const idx = nb.recentMoveTargets.indexOf(folderId);
+    if (idx !== -1) nb.recentMoveTargets.splice(idx, 1);
+    nb.recentMoveTargets.unshift(folderId);
+    if (nb.recentMoveTargets.length > MAX_RECENT_MOVE_TARGETS) {
+      nb.recentMoveTargets.length = MAX_RECENT_MOVE_TARGETS;
+    }
+  }
+
   // ===== Context Menu =====
   let activeContextMenu = null;
 
@@ -740,6 +863,28 @@
       menu.appendChild(containerItem);
     }
 
+    // Pin/Unpin as move target (folders only)
+    if (tabItem.isFolder) {
+      const nbForPin = getActiveNotebook();
+      const pinned = nbForPin && isPinnedMoveTarget(nbForPin, tabItem.id);
+      const pinItem = createMenuItem('📌', pinned ? 'Unpin move target' : 'Pin as move target');
+      pinItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeContextMenu();
+        if (nbForPin) togglePinnedMoveTarget(nbForPin, tabItem.id);
+      });
+      menu.appendChild(pinItem);
+    }
+
+    // Move to folder option
+    const moveItem = createMenuItem('📁', 'Move to…');
+    moveItem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeContextMenu();
+      openMovePicker(tabItem);
+    });
+    menu.appendChild(moveItem);
+
     menu.appendChild(createSeparator());
 
     // Delete option
@@ -760,6 +905,31 @@
     if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
     menu.style.left = x + 'px';
     menu.style.top = y + 'px';
+  }
+
+  // Opens the destination-picker modal for a tab or folder, then performs the move.
+  function openMovePicker(tabItem) {
+    const nb = getActiveNotebook();
+    if (!nb) return;
+    if (!window.MovePicker) {
+      // Fallback: no picker module loaded — move to root
+      moveTabToFolder(tabItem.id, null);
+      return;
+    }
+    pruneMoveTargets(nb);
+    window.MovePicker.open({
+      notebook: nb,
+      tab: tabItem,
+      isDescendantFolder: isDescendantFolder,
+      pinnedTargetIds: nb.moveTargets.slice(),
+      recentTargetIds: nb.recentMoveTargets.slice(),
+      onConfirm: function (targetFolderId) {
+        moveTabToFolder(tabItem.id, targetFolderId);
+      },
+      onUnpin: function (folderId) {
+        togglePinnedMoveTarget(nb, folderId);
+      }
+    });
   }
 
   function createMenuItem(icon, label, danger) {
@@ -4254,6 +4424,9 @@
   document.getElementById('structure-btn').addEventListener('click', function () {
     window.StructureView.toggle();
   });
+
+  // Initialize move-to-folder destination picker
+  if (window.MovePicker) window.MovePicker.init();
 
   // Initialize markdown toolbar (insert before editor container, inside content panel)
   var contentPanel = document.getElementById('content-panel');
