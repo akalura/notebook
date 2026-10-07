@@ -133,15 +133,82 @@
   // Ensure attachments array exists
   if (!state.attachments) state.attachments = [];
 
-  // Ensure move-target tracking arrays exist on every notebook
+  // Ensure image provenance metadata array exists.
+  // Each entry: { id, quality, originalWidth, originalHeight, storedWidth,
+  //               storedHeight, bytes, mimeType, createdAt }
+  if (!Array.isArray(state.images)) state.images = [];
+
+  // Ensure move-target tracking arrays and the notebook-level image-quality
+  // default exist on every notebook. imageQuality values:
+  //   'optimized' | 'high' | 'original'   (notebook has a concrete default)
   state.notebooks.forEach(nb => {
     if (!Array.isArray(nb.moveTargets)) nb.moveTargets = [];
     if (!Array.isArray(nb.recentMoveTargets)) nb.recentMoveTargets = [];
+    // Notebook-level default; tabs/folders may override or inherit (null).
+    if (nb.imageQuality === undefined || nb.imageQuality === null) {
+      nb.imageQuality = 'optimized';
+    }
   });
 
   // Helper to get active notebook
   function getActiveNotebook() {
     return state.notebooks.find(nb => nb.id === state.activeNotebookId) || state.notebooks[0] || null;
+  }
+
+  // ===== Image Quality Profiles & Resolution =====
+
+  // Compression parameters per quality level. `maxWidth: null` means no downscaling
+  // and `recompress: false` means keep the original bytes untouched.
+  const IMAGE_QUALITY_PROFILES = {
+    optimized: { maxWidth: 1200, quality: 0.8, recompress: true },
+    high:      { maxWidth: 3000, quality: 0.95, recompress: true },
+    original:  { maxWidth: null, quality: 1.0, recompress: false }
+  };
+
+  const VALID_IMAGE_QUALITIES = ['optimized', 'high', 'original'];
+
+  function isValidImageQuality(q) {
+    return VALID_IMAGE_QUALITIES.indexOf(q) !== -1;
+  }
+
+  // Resolve the effective image quality for a given tab, by walking up the
+  // hierarchy: tab -> parent folders -> notebook default. A null/undefined
+  // imageQuality on a tab/folder means "inherit from parent".
+  // Returns one of VALID_IMAGE_QUALITIES (always concrete).
+  function resolveImageQuality(nb, tabId) {
+    if (!nb) return 'optimized';
+
+    let currentId = tabId;
+    const guard = new Set(); // defensive against malformed parent chains
+    while (currentId && !guard.has(currentId)) {
+      guard.add(currentId);
+      const node = nb.tabs.find(t => t.id === currentId);
+      if (!node) break;
+      if (isValidImageQuality(node.imageQuality)) {
+        return node.imageQuality;
+      }
+      currentId = node.parentTabId;
+    }
+
+    // Fall back to the notebook default, then the global default.
+    if (isValidImageQuality(nb.imageQuality)) return nb.imageQuality;
+    return 'optimized';
+  }
+
+  // Resolve the quality for the currently active page's tab.
+  function resolveActiveImageQuality(nb) {
+    if (!nb) return 'optimized';
+    return resolveImageQuality(nb, nb.activeTabId);
+  }
+
+  // Record provenance metadata for a stored image so we can later report on
+  // storage usage and what quality each image was saved at.
+  function recordImageMeta(meta) {
+    if (!Array.isArray(state.images)) state.images = [];
+    // Replace any existing entry with the same id (defensive)
+    const idx = state.images.findIndex(m => m.id === meta.id);
+    if (idx !== -1) state.images.splice(idx, 1);
+    state.images.push(meta);
   }
 
   let currentMode = 'edit'; // 'edit' or 'preview'
@@ -472,6 +539,16 @@
       const nameSpan = document.createElement('span');
       nameSpan.textContent = group.name;
       tab.appendChild(nameSpan);
+
+      // Indicator: this tab/folder explicitly overrides image quality
+      if (isValidImageQuality(group.imageQuality) && group.imageQuality !== 'optimized') {
+        const qBadge = document.createElement('span');
+        qBadge.className = 'tab-quality-badge';
+        qBadge.textContent = group.imageQuality === 'original' ? 'ORIG' : 'HI-RES';
+        qBadge.title = 'Images saved here use ' +
+          (group.imageQuality === 'original' ? 'original' : 'high') + ' resolution';
+        tab.appendChild(qBadge);
+      }
 
       tab.addEventListener('click', (e) => {
         if (tab.querySelector('.group-tab-input')) return;
@@ -863,6 +940,20 @@
       menu.appendChild(containerItem);
     }
 
+    // Image quality setting (tabs and folders)
+    const nbForQuality = getActiveNotebook();
+    if (nbForQuality) {
+      const effective = resolveImageQuality(nbForQuality, tabItem.id);
+      const qLabels = { optimized: 'Optimized', high: 'High-res', original: 'Original' };
+      const qItem = createMenuItem('🖼', 'Image Quality (' + (qLabels[effective] || effective) + ')');
+      qItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rect = qItem.getBoundingClientRect();
+        showImageQualityMenu(rect.right, rect.top, tabItem);
+      });
+      menu.appendChild(qItem);
+    }
+
     // Pin/Unpin as move target (folders only)
     if (tabItem.isFolder) {
       const nbForPin = getActiveNotebook();
@@ -930,6 +1021,60 @@
         togglePinnedMoveTarget(nb, folderId);
       }
     });
+  }
+
+  // Secondary menu for choosing a tab/folder's image-quality setting.
+  // "Inherit" clears the explicit value so it resolves from the parent chain.
+  function showImageQualityMenu(x, y, tabItem) {
+    closeContextMenu();
+    const nb = getActiveNotebook();
+    if (!nb) return;
+
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+
+    // What this item would resolve to if set to "inherit" (ignore its own value)
+    const parentResolved = resolveImageQuality(nb, tabItem.parentTabId);
+    const current = isValidImageQuality(tabItem.imageQuality) ? tabItem.imageQuality : null;
+
+    const qLabels = { optimized: 'Optimized', high: 'High-res', original: 'Original' };
+
+    // Inherit option
+    const inheritItem = createMenuItem(
+      current === null ? '✓' : '　',
+      'Inherit (' + (qLabels[parentResolved] || parentResolved) + ')'
+    );
+    inheritItem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeContextMenu();
+      tabItem.imageQuality = null;
+      debouncedSave();
+      renderTabs();
+    });
+    menu.appendChild(inheritItem);
+
+    menu.appendChild(createSeparator());
+
+    VALID_IMAGE_QUALITIES.forEach((q) => {
+      const item = createMenuItem(current === q ? '✓' : '　', qLabels[q]);
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeContextMenu();
+        tabItem.imageQuality = q;
+        debouncedSave();
+        renderTabs();
+      });
+      menu.appendChild(item);
+    });
+
+    document.body.appendChild(menu);
+    activeContextMenu = menu;
+
+    const rect = menu.getBoundingClientRect();
+    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
+    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
   }
 
   function createMenuItem(icon, label, danger) {
@@ -2884,7 +3029,10 @@
           e.preventDefault();
           const blob = items[i].getAsFile();
           if (blob) {
-            handleImagePaste(blob);
+            // Shift-paste forces the original (uncompressed) image, overriding
+            // the location's resolved quality setting.
+            const override = e.shiftKey ? 'original' : null;
+            handleImagePaste(blob, override);
           }
           return;
         }
@@ -2995,16 +3143,43 @@
     }
   }
 
-  function handleImagePaste(blob) {
+  // qualityOverride (optional): one of VALID_IMAGE_QUALITIES to force a quality
+  // for this paste, bypassing the resolved location setting (used by Shift-paste).
+  function handleImagePaste(blob, qualityOverride) {
     const activePage = getActivePage();
     if (!activePage) return;
 
-    const imgId = generateId('img');
+    const nb = getActiveNotebook();
+    const quality = isValidImageQuality(qualityOverride)
+      ? qualityOverride
+      : resolveActiveImageQuality(nb);
+    const profile = IMAGE_QUALITY_PROFILES[quality] || IMAGE_QUALITY_PROFILES.optimized;
 
-    // Compress and store
-    compressImage(blob, 1200, 0.8).then((compressed) => {
-      return storeImage(imgId, compressed, 'image/jpeg');
-    }).then(() => {
+    const imgId = generateId('img');
+    const sourceBytes = blob.size;
+
+    // Compress (or keep original) according to the resolved profile.
+    compressImage(blob, {
+      maxWidth: profile.maxWidth,
+      quality: profile.quality,
+      recompress: profile.recompress,
+      preservePng: true
+    }).then((out) => {
+      return storeImage(imgId, out.blob, out.mimeType).then(() => out);
+    }).then((out) => {
+      // Record provenance metadata for storage reporting.
+      recordImageMeta({
+        id: imgId,
+        quality: quality,
+        originalWidth: out.originalWidth,
+        originalHeight: out.originalHeight,
+        storedWidth: out.width,
+        storedHeight: out.height,
+        bytes: (out.blob && out.blob.size) || sourceBytes,
+        mimeType: out.mimeType,
+        createdAt: new Date().toISOString()
+      });
+
       // Insert token at cursor position
       const token = '{{img:' + imgId + '}}';
       const start = editorEl.selectionStart;
@@ -3017,9 +3192,40 @@
       activePage.content = editorEl.value;
       activePage.updatedAt = new Date().toISOString();
       debouncedSave();
+
+      showImageQualityToast(quality, out);
     }).catch((err) => {
       console.warn('Failed to store image:', err);
     });
+  }
+
+  // Non-blocking toast showing how a pasted image was stored.
+  function showImageQualityToast(quality, out) {
+    const labels = { optimized: 'Optimized', high: 'High-res', original: 'Original' };
+    let msg = (labels[quality] || quality) + ' image saved';
+    if (out && out.width && out.height) {
+      msg += ' · ' + out.width + '×' + out.height;
+    }
+    if (out && out.blob && out.blob.size) {
+      msg += ' · ' + formatBytes(out.blob.size);
+    }
+
+    let toast = document.getElementById('image-quality-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'image-quality-toast';
+      toast.className = 'image-quality-toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.classList.remove('fade-out');
+    toast.classList.add('visible');
+
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => {
+      toast.classList.add('fade-out');
+      toast.classList.remove('visible');
+    }, 2200);
   }
 
   btnEdit.addEventListener('click', () => {
@@ -4427,6 +4633,19 @@
 
   // Initialize move-to-folder destination picker
   if (window.MovePicker) window.MovePicker.init();
+
+  // Initialize keyboard-shortcuts help (F1)
+  if (window.ShortcutsHelp) {
+    window.ShortcutsHelp.init();
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        window.ShortcutsHelp.toggle();
+      } else if (e.key === 'Escape' && window.ShortcutsHelp.isVisible()) {
+        window.ShortcutsHelp.hide();
+      }
+    });
+  }
 
   // Initialize markdown toolbar (insert before editor container, inside content panel)
   var contentPanel = document.getElementById('content-panel');

@@ -86,33 +86,101 @@ window.NoteStorage = (function () {
     });
   }
 
-  function compressImage(blob, maxWidth, quality) {
-    maxWidth = maxWidth || 1200;
-    quality = quality || 0.8;
+  /**
+   * Compress/resize an image blob and report what was produced.
+   *
+   * @param {Blob} blob - source image
+   * @param {Object} [opts]
+   * @param {number|null} [opts.maxWidth=1200] - downscale cap; null = no downscaling
+   * @param {number} [opts.quality=0.8] - encode quality for lossy formats (0..1)
+   * @param {boolean} [opts.recompress=true] - false = keep original bytes untouched
+   * @param {boolean} [opts.preservePng=true] - keep PNG sources as PNG (transparency)
+   * @returns {Promise<{blob: Blob, mimeType: string, width: number|null,
+   *                     height: number|null, originalWidth: number|null,
+   *                     originalHeight: number|null}>}
+   */
+  function compressImage(blob, opts) {
+    // Back-compat: allow compressImage(blob, maxWidth, quality)
+    if (typeof opts === 'number') {
+      opts = { maxWidth: opts, quality: arguments[2] };
+    }
+    opts = opts || {};
+    var maxWidth = (opts.maxWidth === null) ? null
+      : (opts.maxWidth || 1200);
+    var quality = (opts.quality != null) ? opts.quality : 0.8;
+    var recompress = (opts.recompress !== false);
+    var preservePng = (opts.preservePng !== false);
+
+    var isPng = blob && blob.type === 'image/png';
+
     return new Promise((resolve) => {
       var img = new Image();
       var url = URL.createObjectURL(blob);
+
       img.onload = function () {
-        var w = img.width;
-        var h = img.height;
-        if (w > maxWidth) {
+        var ow = img.width;
+        var oh = img.height;
+
+        // Keep original bytes untouched when requested, or when there is
+        // nothing to do (no downscale needed and no recompression wanted).
+        var needsDownscale = (maxWidth != null && ow > maxWidth);
+        if (!recompress && !needsDownscale) {
+          URL.revokeObjectURL(url);
+          resolve({
+            blob: blob,
+            mimeType: blob.type || 'application/octet-stream',
+            width: ow,
+            height: oh,
+            originalWidth: ow,
+            originalHeight: oh
+          });
+          return;
+        }
+
+        var w = ow;
+        var h = oh;
+        if (needsDownscale) {
           h = Math.round(h * (maxWidth / w));
           w = maxWidth;
         }
+
         var canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
         var ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
+
+        // Preserve PNG (and its transparency) when the source is PNG;
+        // otherwise encode as JPEG. PNG ignores the quality argument.
+        var outType = (preservePng && isPng) ? 'image/png' : 'image/jpeg';
+
         canvas.toBlob(function (result) {
           URL.revokeObjectURL(url);
-          resolve(result);
-        }, 'image/jpeg', quality);
+          var finalBlob = result || blob;
+          resolve({
+            blob: finalBlob,
+            mimeType: outType,
+            width: w,
+            height: h,
+            originalWidth: ow,
+            originalHeight: oh
+          });
+        }, outType, quality);
       };
+
       img.onerror = function () {
         URL.revokeObjectURL(url);
-        resolve(blob);
+        // Fall back to original bytes on decode failure.
+        resolve({
+          blob: blob,
+          mimeType: blob.type || 'application/octet-stream',
+          width: null,
+          height: null,
+          originalWidth: null,
+          originalHeight: null
+        });
       };
+
       img.src = url;
     });
   }
